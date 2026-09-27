@@ -1,6 +1,19 @@
 import User from "../models/User.js";
+import { clerkClient } from "@clerk/express";
 
-const ALLOWED_ROLES = [
+// =====================================================
+// ROLES
+// =====================================================
+
+// Roles that can be created from Admin → Users
+const ADMIN_CREATED_ROLES = [
+  "admin",
+  "sports_officer",
+  "college_coordinator",
+];
+
+// All roles existing in the application
+const ALL_ROLES = [
   "admin",
   "sports_officer",
   "college_coordinator",
@@ -8,230 +21,435 @@ const ALLOWED_ROLES = [
 ];
 
 // =====================================================
-// CREATE USER - ADMIN
+// HELPERS
 // =====================================================
+
+const splitName = (fullName = "") => {
+  const parts = fullName.trim().split(/\s+/);
+
+  if (parts.length === 1) {
+    return {
+      firstName: parts[0],
+      lastName: "",
+    };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+};
+
+// =====================================================
+// CREATE USER
+//
+// Creates:
+// 1. Clerk account
+// 2. MongoDB User
+//
+// Used for:
+// Admin
+// Sports Officer
+// College Coordinator
+//
+// Students should use /api/students/admin-create
+// =====================================================
+
 export const createUser = async (req, res) => {
+  let clerkUser = null;
+  let mongoUser = null;
+
   try {
     const {
-      clerkUserId,
       name,
       email,
       phone,
       role,
-      isActive,
+      isActive = true,
     } = req.body;
 
-    // -------------------------------------------------
-    // REQUIRED FIELDS
-    // -------------------------------------------------
-    if (!clerkUserId || !name || !email) {
+    // =================================================
+    // VALIDATION
+    // =================================================
+
+    if (!name?.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Clerk User ID, name and email are required",
+        message: "Name is required.",
       });
     }
 
-    const cleanClerkUserId = clerkUserId.trim();
+    if (!email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required.",
+      });
+    }
+
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: "Role is required.",
+      });
+    }
+
+    // =================================================
+    // ONLY ALLOW NON-STUDENT ROLES HERE
+    // =================================================
+
+    if (!ADMIN_CREATED_ROLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid role. Student accounts must be created through the Student module.",
+      });
+    }
+
+    // =================================================
+    // CLEAN DATA
+    // =================================================
+
     const cleanName = name.trim();
+
     const cleanEmail = email.trim().toLowerCase();
+
     const cleanPhone = phone?.trim() || "";
 
-    if (!cleanName) {
-      return res.status(400).json({
-        success: false,
-        message: "Name cannot be empty",
-      });
-    }
+    // =================================================
+    // CHECK MONGODB EMAIL
+    // =================================================
 
-    // -------------------------------------------------
-    // VALIDATE ROLE
-    // -------------------------------------------------
-    const userRole = role || "student";
-
-    if (!ALLOWED_ROLES.includes(userRole)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user role",
-      });
-    }
-
-    // -------------------------------------------------
-    // CHECK CLERK ID DUPLICATE
-    // -------------------------------------------------
-    const existingClerkUser = await User.findOne({
-      clerkUserId: cleanClerkUserId,
-    });
-
-    if (existingClerkUser) {
-      return res.status(409).json({
-        success: false,
-        message: "A user with this Clerk User ID already exists",
-      });
-    }
-
-    // -------------------------------------------------
-    // CHECK EMAIL DUPLICATE
-    // -------------------------------------------------
-    const existingEmail = await User.findOne({
+    const existingMongoUser = await User.findOne({
       email: cleanEmail,
     });
 
-    if (existingEmail) {
+    if (existingMongoUser) {
       return res.status(409).json({
         success: false,
-        message: "A user with this email already exists",
+        message:
+          "A user with this email already exists in MongoDB.",
       });
     }
 
-    // -------------------------------------------------
-    // CREATE USER
-    // -------------------------------------------------
-    const user = await User.create({
-      clerkUserId: cleanClerkUserId,
+    // =================================================
+    // SPLIT NAME
+    // =================================================
+
+    const { firstName, lastName } = splitName(cleanName);
+
+    // =================================================
+    // CREATE CLERK USER
+    //
+    // NO PASSWORD REQUIRED
+    // =================================================
+
+    const clerkCreateData = {
+      emailAddress: [cleanEmail],
+
+      firstName,
+
+      lastName,
+
+      // Allows Clerk user creation without password
+      skipPasswordRequirement: true,
+    };
+
+   
+
+    // If admin creates inactive user,
+    // prevent that user from logging in.
+    if (!isActive) {
+      clerkCreateData.banned = true;
+    }
+
+    console.log("Creating Clerk user:", {
+      email: cleanEmail,
+      role,
+      hasPhone: Boolean(cleanPhone),
+    });
+
+    clerkUser = await clerkClient.users.createUser(
+      clerkCreateData
+    );
+
+    console.log(
+      "Clerk user created:",
+      clerkUser.id
+    );
+
+    // =================================================
+    // CREATE MONGODB USER
+    // =================================================
+
+    mongoUser = await User.create({
+      clerkUserId: clerkUser.id,
+
       name: cleanName,
+
       email: cleanEmail,
+
       phone: cleanPhone,
-      role: userRole,
-      isActive: isActive !== undefined ? Boolean(isActive) : true,
+
+      role,
+
+      isActive: Boolean(isActive),
     });
+
+    // =================================================
+    // SUCCESS
+    // =================================================
 
     return res.status(201).json({
       success: true,
-      message: "User created successfully",
-      data: user,
+
+      message:
+        "User created successfully in Clerk and MongoDB.",
+
+      data: {
+        _id: mongoUser._id,
+
+        clerkUserId:
+          mongoUser.clerkUserId,
+
+        name: mongoUser.name,
+
+        email: mongoUser.email,
+
+        phone: mongoUser.phone,
+
+        role: mongoUser.role,
+
+        isActive:
+          mongoUser.isActive,
+      },
     });
   } catch (error) {
-    console.error("CREATE USER ERROR:", error);
+    console.error(
+      "CREATE USER ERROR:",
+      error
+    );
 
-    // MongoDB duplicate key
-    if (error.code === 11000) {
-      return res.status(409).json({
+    // =================================================
+    // ROLLBACK CLERK
+    //
+    // If Clerk account was created but MongoDB
+    // creation failed, remove the Clerk account.
+    // =================================================
+
+    if (
+      clerkUser?.id &&
+      !mongoUser
+    ) {
+      try {
+        await clerkClient.users.deleteUser(
+          clerkUser.id
+        );
+
+        console.log(
+          "Clerk user rolled back:",
+          clerkUser.id
+        );
+      } catch (rollbackError) {
+        console.error(
+          "CLERK ROLLBACK ERROR:",
+          rollbackError
+        );
+      }
+    }
+
+    // =================================================
+    // CLERK ERROR
+    // =================================================
+
+    if (error?.errors?.length) {
+      const clerkError =
+        error.errors[0];
+
+      console.error(
+        "CLERK ERROR DETAILS:",
+        error.errors
+      );
+
+      return res.status(400).json({
         success: false,
-        message: "A user with the same unique information already exists",
+
+        message:
+          clerkError?.longMessage ||
+          clerkError?.message ||
+          "Clerk could not create the user.",
       });
     }
 
+    // =================================================
+    // MONGODB DUPLICATE
+    // =================================================
+
+    if (error?.code === 11000) {
+      const duplicateField =
+        Object.keys(error.keyPattern || {})[0];
+
+      return res.status(409).json({
+        success: false,
+
+        message: duplicateField
+          ? `A user with the same ${duplicateField} already exists.`
+          : "A user with the same information already exists.",
+      });
+    }
+
+    // =================================================
+    // OTHER ERROR
+    // =================================================
+
     return res.status(500).json({
       success: false,
-      message: "Failed to create user",
+
+      message:
+        "Failed to create user.",
+
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// CREATE / SYNC MY USER
-// =====================================================
-// Used when a newly authenticated Clerk user enters
-// the Sports Meet application for the first time.
+// CREATE MY USER
 //
-// Clerk User ID comes from authentication.
-// It is NEVER accepted from the browser.
+// Used when a user already exists in Clerk
+// and needs a MongoDB application user.
+//
+// Normally used for self-signup.
 // =====================================================
-export const createMyUser = async (req, res) => {
+
+export const createMyUser = async (
+  req,
+  res
+) => {
   try {
-    const clerkUserId = req.clerkUserId;
+    const clerkUserId =
+      req.clerkUserId;
 
     if (!clerkUserId) {
       return res.status(401).json({
         success: false,
-        message: "Authenticated Clerk User ID not found",
+        message:
+          "Clerk authentication required.",
       });
     }
 
-    const {
-      name,
-      email,
-      phone,
-    } = req.body;
+    // =================================================
+    // CHECK EXISTING MONGO USER
+    // =================================================
 
-    if (!name || !email) {
-      return res.status(400).json({
-        success: false,
-        message: "Name and email are required",
+    const existingUser =
+      await User.findOne({
+        clerkUserId,
       });
-    }
-
-    const cleanName = name.trim();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone?.trim() || "";
-
-    if (!cleanName) {
-      return res.status(400).json({
-        success: false,
-        message: "Name cannot be empty",
-      });
-    }
-
-    // -------------------------------------------------
-    // CHECK WHETHER USER ALREADY EXISTS
-    // -------------------------------------------------
-    const existingUser = await User.findOne({
-      clerkUserId,
-    });
 
     if (existingUser) {
-      if (!existingUser.isActive) {
-        return res.status(403).json({
-          success: false,
-          message: "This user account has been deactivated",
-        });
-      }
-
       return res.status(200).json({
         success: true,
-        message: "User already exists",
+        message:
+          "User already exists.",
         data: existingUser,
-        alreadyExists: true,
       });
     }
 
-    // -------------------------------------------------
-    // CHECK EMAIL
-    // -------------------------------------------------
-    const existingEmail = await User.findOne({
-      email: cleanEmail,
-    });
+    // =================================================
+    // GET USER FROM CLERK
+    // =================================================
 
-    if (existingEmail) {
-      return res.status(409).json({
+    const clerkUser =
+      await clerkClient.users.getUser(
+        clerkUserId
+      );
+
+    const name =
+      clerkUser.fullName ||
+      [
+        clerkUser.firstName,
+        clerkUser.lastName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    const email =
+      clerkUser.primaryEmailAddress
+        ?.emailAddress ||
+      clerkUser.emailAddresses?.[0]
+        ?.emailAddress ||
+      "";
+
+    const phone =
+      clerkUser.primaryPhoneNumber
+        ?.phoneNumber ||
+      clerkUser.phoneNumbers?.[0]
+        ?.phoneNumber ||
+      "";
+
+    if (!name) {
+      return res.status(400).json({
         success: false,
         message:
-          "This email is already associated with another application user",
+          "Name is missing from the Clerk account.",
       });
     }
 
-    // -------------------------------------------------
-    // NEW USERS ARE STUDENTS BY DEFAULT
-    // -------------------------------------------------
-    const user = await User.create({
-      clerkUserId,
-      name: cleanName,
-      email: cleanEmail,
-      phone: cleanPhone,
-      role: "student",
-      isActive: true,
-    });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Email is missing from the Clerk account.",
+      });
+    }
+
+    // =================================================
+    // CREATE MONGO USER
+    // =================================================
+
+    const mongoUser =
+      await User.create({
+        clerkUserId,
+
+        name,
+
+        email:
+          email.toLowerCase(),
+
+        phone,
+
+        role: "student",
+
+        isActive: true,
+      });
 
     return res.status(201).json({
       success: true,
-      message: "User profile created successfully",
-      data: user,
-      alreadyExists: false,
+
+      message:
+        "Application user created successfully.",
+
+      data: mongoUser,
     });
   } catch (error) {
-    console.error("CREATE MY USER ERROR:", error);
+    console.error(
+      "CREATE MY USER ERROR:",
+      error
+    );
 
-    if (error.code === 11000) {
+    if (error?.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "User information already exists",
+        message:
+          "Application user already exists.",
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Failed to create user profile",
+      message:
+        "Failed to create application user.",
       error: error.message,
     });
   }
@@ -240,32 +458,31 @@ export const createMyUser = async (req, res) => {
 // =====================================================
 // GET MY USER
 // =====================================================
-export const getMyUser = async (req, res) => {
+
+export const getMyUser = async (
+  req,
+  res
+) => {
   try {
-    const clerkUserId = req.clerkUserId;
-
-    if (!clerkUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authenticated user not found",
+    const user =
+      await User.findOne({
+        clerkUserId:
+          req.clerkUserId,
       });
-    }
-
-    const user = await User.findOne({
-      clerkUserId,
-    }).select("-__v");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Application user profile not found",
+        message:
+          "Application user not found.",
       });
     }
 
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: "User account is deactivated",
+        message:
+          "This account is inactive.",
       });
     }
 
@@ -274,11 +491,15 @@ export const getMyUser = async (req, res) => {
       data: user,
     });
   } catch (error) {
-    console.error("GET MY USER ERROR:", error);
+    console.error(
+      "GET MY USER ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch user profile",
+      message:
+        "Failed to fetch user.",
       error: error.message,
     });
   }
@@ -287,129 +508,137 @@ export const getMyUser = async (req, res) => {
 // =====================================================
 // GET ALL USERS
 // =====================================================
-export const getAllUsers = async (req, res) => {
+
+export const getAllUsers = async (
+  req,
+  res
+) => {
   try {
     const {
-      search,
-      role,
-      isActive,
+      search = "",
+      role = "",
+      isActive = "",
       page = 1,
       limit = 20,
     } = req.query;
 
-    const filter = {};
+    const currentPage =
+      Math.max(
+        Number(page) || 1,
+        1
+      );
 
-    // -------------------------------------------------
+    const currentLimit =
+      Math.min(
+        Math.max(
+          Number(limit) || 20,
+          1
+        ),
+        100
+      );
+
+    const query = {};
+
+    // =================================================
     // SEARCH
-    // -------------------------------------------------
-    if (search?.trim()) {
-      filter.$or = [
+    // =================================================
+
+    if (search.trim()) {
+      const regex =
+        new RegExp(
+          search.trim(),
+          "i"
+        );
+
+      query.$or = [
         {
-          name: {
-            $regex: search.trim(),
-            $options: "i",
-          },
+          name: regex,
         },
         {
-          email: {
-            $regex: search.trim(),
-            $options: "i",
-          },
+          email: regex,
         },
         {
-          phone: {
-            $regex: search.trim(),
-            $options: "i",
-          },
+          phone: regex,
         },
         {
-          clerkUserId: {
-            $regex: search.trim(),
-            $options: "i",
-          },
+          clerkUserId: regex,
         },
       ];
     }
 
-    // -------------------------------------------------
-    // ROLE FILTER
-    // -------------------------------------------------
-    if (role) {
-      if (!ALLOWED_ROLES.includes(role)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid role filter",
-        });
-      }
+    // =================================================
+    // ROLE
+    // =================================================
 
-      filter.role = role;
+    if (
+      role &&
+      ALL_ROLES.includes(role)
+    ) {
+      query.role = role;
     }
 
-    // -------------------------------------------------
-    // ACTIVE FILTER
-    // -------------------------------------------------
-    if (isActive !== undefined) {
-      if (isActive !== "true" && isActive !== "false") {
-        return res.status(400).json({
-          success: false,
-          message: "isActive must be true or false",
-        });
-      }
+    // =================================================
+    // STATUS
+    // =================================================
 
-      filter.isActive = isActive === "true";
+    if (isActive === "true") {
+      query.isActive = true;
     }
 
-    // -------------------------------------------------
-    // PAGINATION
-    // -------------------------------------------------
-    let currentPage = Number(page);
-    let pageLimit = Number(limit);
-
-    if (!Number.isInteger(currentPage) || currentPage < 1) {
-      currentPage = 1;
+    if (isActive === "false") {
+      query.isActive = false;
     }
 
-    if (!Number.isInteger(pageLimit) || pageLimit < 1) {
-      pageLimit = 20;
-    }
+    const skip =
+      (currentPage - 1) *
+      currentLimit;
 
-    // Maximum 100 records per request
-    if (pageLimit > 100) {
-      pageLimit = 100;
-    }
-
-    const skip = (currentPage - 1) * pageLimit;
-
-    const [users, totalUsers] = await Promise.all([
-      User.find(filter)
+    const [
+      users,
+      totalUsers,
+    ] = await Promise.all([
+      User.find(query)
         .select("-__v")
-        .sort({ name: 1 })
+        .sort({
+          name: 1,
+        })
         .skip(skip)
-        .limit(pageLimit),
+        .limit(currentLimit)
+        .lean(),
 
-      User.countDocuments(filter),
+      User.countDocuments(
+        query
+      ),
     ]);
 
-    const totalPages = Math.ceil(totalUsers / pageLimit);
+    const totalPages =
+      Math.ceil(
+        totalUsers /
+          currentLimit
+      );
 
     return res.status(200).json({
       success: true,
+
       data: users,
+
       pagination: {
-        currentPage,
-        limit: pageLimit,
+        page: currentPage,
+        limit: currentLimit,
         totalUsers,
         totalPages,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1,
       },
     });
   } catch (error) {
-    console.error("GET ALL USERS ERROR:", error);
+    console.error(
+      "GET ALL USERS ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch users",
+      message:
+        "Failed to fetch users.",
       error: error.message,
     });
   }
@@ -418,23 +647,22 @@ export const getAllUsers = async (req, res) => {
 // =====================================================
 // GET USER BY ID
 // =====================================================
-export const getUserById = async (req, res) => {
+
+export const getUserById = async (
+  req,
+  res
+) => {
   try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required",
-      });
-    }
-
-    const user = await User.findById(id).select("-__v");
+    const user =
+      await User.findById(
+        req.params.id
+      );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message:
+          "User not found.",
       });
     }
 
@@ -443,18 +671,15 @@ export const getUserById = async (req, res) => {
       data: user,
     });
   } catch (error) {
-    console.error("GET USER BY ID ERROR:", error);
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID",
-      });
-    }
+    console.error(
+      "GET USER BY ID ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch user",
+      message:
+        "Failed to fetch user.",
       error: error.message,
     });
   }
@@ -462,36 +687,26 @@ export const getUserById = async (req, res) => {
 
 // =====================================================
 // UPDATE MY USER
+//
+// User can update own name and phone.
 // =====================================================
-// Student/user can update only personal information.
-// Role, Clerk ID and account status cannot be changed here.
-// =====================================================
-export const updateMyUser = async (req, res) => {
+
+export const updateMyUser = async (
+  req,
+  res
+) => {
   try {
-    const clerkUserId = req.clerkUserId;
-
-    if (!clerkUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authenticated user not found",
+    const user =
+      await User.findOne({
+        clerkUserId:
+          req.clerkUserId,
       });
-    }
-
-    const user = await User.findOne({
-      clerkUserId,
-    });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User profile not found",
-      });
-    }
-
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: "User account is deactivated",
+        message:
+          "Application user not found.",
       });
     }
 
@@ -504,48 +719,94 @@ export const updateMyUser = async (req, res) => {
       if (!name.trim()) {
         return res.status(400).json({
           success: false,
-          message: "Name cannot be empty",
+          message:
+            "Name cannot be empty.",
         });
       }
 
-      user.name = name.trim();
+      user.name =
+        name.trim();
     }
 
     if (phone !== undefined) {
-      user.phone = phone.trim();
+      user.phone =
+        phone.trim();
     }
 
     await user.save();
 
+    // =================================================
+    // SYNC NAME WITH CLERK
+    // =================================================
+
+    if (name !== undefined) {
+      const {
+        firstName,
+        lastName,
+      } = splitName(
+        user.name
+      );
+
+      await clerkClient.users.updateUser(
+        user.clerkUserId,
+        {
+          firstName,
+          lastName,
+        }
+      );
+    }
+
     return res.status(200).json({
       success: true,
-      message: "User profile updated successfully",
+      message:
+        "Profile updated successfully.",
       data: user,
     });
   } catch (error) {
-    console.error("UPDATE MY USER ERROR:", error);
+    console.error(
+      "UPDATE MY USER ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update user profile",
+      message:
+        "Failed to update profile.",
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// UPDATE USER - ADMIN / SPORTS OFFICER
+// UPDATE USER
+//
+// Admin / Sports Officer can update users
+// according to route permissions.
+//
+// Supports:
+// name
+// email
+// phone
+// password
+// role
+// isActive
 // =====================================================
-export const updateUser = async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    const user = await User.findById(id);
+export const updateUser = async (
+  req,
+  res
+) => {
+  try {
+    const user =
+      await User.findById(
+        req.params.id
+      );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message:
+          "User not found.",
       });
     }
 
@@ -554,197 +815,329 @@ export const updateUser = async (req, res) => {
       email,
       phone,
       role,
+      password,
       isActive,
     } = req.body;
 
-    // -------------------------------------------------
-    // NAME
-    // -------------------------------------------------
+    // =================================================
+    // ROLE VALIDATION
+    // =================================================
+
+    if (
+      role !== undefined &&
+      !ALL_ROLES.includes(role)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid role.",
+      });
+    }
+
+    // =================================================
+    // LAST ADMIN PROTECTION
+    // =================================================
+
+    if (
+      user.role === "admin" &&
+      role !== undefined &&
+      role !== "admin"
+    ) {
+      const adminCount =
+        await User.countDocuments({
+          role: "admin",
+          isActive: true,
+        });
+
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The last active admin cannot be changed to another role.",
+        });
+      }
+    }
+
+    if (
+      user.role === "admin" &&
+      isActive === false
+    ) {
+      const adminCount =
+        await User.countDocuments({
+          role: "admin",
+          isActive: true,
+        });
+
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The last active admin cannot be deactivated.",
+        });
+      }
+    }
+
+    // =================================================
+    // EMAIL DUPLICATE CHECK
+    // =================================================
+
+    if (email !== undefined) {
+      const cleanEmail =
+        email.trim().toLowerCase();
+
+      const duplicate =
+        await User.findOne({
+          email: cleanEmail,
+          _id: {
+            $ne: user._id,
+          },
+        });
+
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Another user already uses this email.",
+        });
+      }
+    }
+
+    // =================================================
+    // PHONE DUPLICATE CHECK
+    // =================================================
+
+    if (phone !== undefined) {
+      const cleanPhone =
+        phone.trim();
+
+      if (cleanPhone) {
+        const duplicatePhone =
+          await User.findOne({
+            phone: cleanPhone,
+            _id: {
+              $ne: user._id,
+            },
+          });
+
+        if (duplicatePhone) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "Another user already uses this phone number.",
+          });
+        }
+      }
+    }
+
+    // =================================================
+    // UPDATE CLERK
+    // =================================================
+
+    const clerkUpdate = {};
+
     if (name !== undefined) {
       if (!name.trim()) {
         return res.status(400).json({
           success: false,
-          message: "Name cannot be empty",
+          message:
+            "Name cannot be empty.",
         });
       }
 
-      user.name = name.trim();
+      const {
+        firstName,
+        lastName,
+      } = splitName(
+        name.trim()
+      );
+
+      clerkUpdate.firstName =
+        firstName;
+
+      clerkUpdate.lastName =
+        lastName;
     }
 
-    // -------------------------------------------------
-    // EMAIL
-    // -------------------------------------------------
+    // =================================================
+    // OPTIONAL PASSWORD UPDATE
+    //
+    // Password is NOT required.
+    // If supplied during editing, it is changed.
+    // =================================================
+
+    if (password) {
+      if (password.length < 8) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Password must be at least 8 characters.",
+        });
+      }
+
+      clerkUpdate.password =
+        password;
+
+      clerkUpdate.signOutOfOtherSessions =
+        true;
+    }
+
+    // =================================================
+    // UPDATE CLERK
+    // =================================================
+
+    if (
+      Object.keys(
+        clerkUpdate
+      ).length > 0
+    ) {
+      await clerkClient.users.updateUser(
+        user.clerkUserId,
+        clerkUpdate
+      );
+    }
+
+    // =================================================
+    // UPDATE MONGO USER
+    // =================================================
+
+    if (name !== undefined) {
+      user.name =
+        name.trim();
+    }
+
     if (email !== undefined) {
-      const cleanEmail = email.trim().toLowerCase();
-
-      if (!cleanEmail) {
-        return res.status(400).json({
-          success: false,
-          message: "Email cannot be empty",
-        });
-      }
-
-      const existingEmail = await User.findOne({
-        email: cleanEmail,
-        _id: { $ne: id },
-      });
-
-      if (existingEmail) {
-        return res.status(409).json({
-          success: false,
-          message: "Another user already uses this email",
-        });
-      }
-
-      user.email = cleanEmail;
+      user.email =
+        email.trim().toLowerCase();
     }
 
-    // -------------------------------------------------
-    // PHONE
-    // -------------------------------------------------
     if (phone !== undefined) {
-      user.phone = phone.trim();
+      user.phone =
+        phone.trim();
     }
 
-    // -------------------------------------------------
-    // ROLE
-    // -------------------------------------------------
     if (role !== undefined) {
-      if (!ALLOWED_ROLES.includes(role)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid user role",
-        });
-      }
-
-      // Prevent admin from accidentally removing
-      // the last active admin.
-      if (
-        user.role === "admin" &&
-        role !== "admin"
-      ) {
-        const activeAdminCount = await User.countDocuments({
-          role: "admin",
-          isActive: true,
-          _id: { $ne: id },
-        });
-
-        if (activeAdminCount === 0) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Cannot remove the role from the last active administrator",
-          });
-        }
-      }
-
       user.role = role;
     }
 
-    // -------------------------------------------------
-    // ACTIVE STATUS
-    // -------------------------------------------------
     if (isActive !== undefined) {
-      const newActiveStatus = Boolean(isActive);
-
-      // Cannot deactivate the last admin
-      if (
-        user.role === "admin" &&
-        user.isActive === true &&
-        newActiveStatus === false
-      ) {
-        const activeAdminCount = await User.countDocuments({
-          role: "admin",
-          isActive: true,
-          _id: { $ne: id },
-        });
-
-        if (activeAdminCount === 0) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Cannot deactivate the last active administrator",
-          });
-        }
-      }
-
-      user.isActive = newActiveStatus;
+      user.isActive =
+        Boolean(isActive);
     }
 
     await user.save();
 
+    // =================================================
+    // SYNC ACTIVE STATUS WITH CLERK
+    // =================================================
+
+    if (isActive !== undefined) {
+      if (isActive) {
+        await clerkClient.users.unbanUser(
+          user.clerkUserId
+        );
+      } else {
+        await clerkClient.users.banUser(
+          user.clerkUserId
+        );
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      message: "User updated successfully",
+      message:
+        "User updated successfully.",
       data: user,
     });
   } catch (error) {
-    console.error("UPDATE USER ERROR:", error);
+    console.error(
+      "UPDATE USER ERROR:",
+      error
+    );
 
-    if (error.name === "CastError") {
+    if (error?.errors?.length) {
       return res.status(400).json({
         success: false,
-        message: "Invalid user ID",
+        message:
+          error.errors[0]?.longMessage ||
+          error.errors[0]?.message ||
+          "Clerk update failed.",
       });
     }
 
-    if (error.code === 11000) {
+    if (error?.code === 11000) {
+      const duplicateField =
+        Object.keys(error.keyPattern || {})[0];
+
       return res.status(409).json({
         success: false,
-        message: "A user with the same unique information already exists",
+        message: duplicateField
+          ? `Another user already uses this ${duplicateField}.`
+          : "Another user already uses the same information.",
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update user",
+      message:
+        "Failed to update user.",
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// UPDATE USER ROLE ONLY
+// UPDATE USER ROLE
 // =====================================================
-export const updateUserRole = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { role } = req.body;
 
-    if (!ALLOWED_ROLES.includes(role)) {
+export const updateUserRole = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      role,
+    } = req.body;
+
+    if (!ALL_ROLES.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid user role",
+        message:
+          "Invalid role.",
       });
     }
 
-    const user = await User.findById(id);
+    const user =
+      await User.findById(
+        req.params.id
+      );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message:
+          "User not found.",
       });
     }
 
-    // -------------------------------------------------
+    // =================================================
     // LAST ADMIN PROTECTION
-    // -------------------------------------------------
+    // =================================================
+
     if (
       user.role === "admin" &&
       role !== "admin"
     ) {
-      const activeAdminCount = await User.countDocuments({
-        role: "admin",
-        isActive: true,
-        _id: { $ne: id },
-      });
+      const adminCount =
+        await User.countDocuments({
+          role: "admin",
+          isActive: true,
+        });
 
-      if (activeAdminCount === 0) {
+      if (adminCount <= 1) {
         return res.status(400).json({
           success: false,
           message:
-            "Cannot change the role of the last active administrator",
+            "The last active admin cannot be changed.",
         });
       }
     }
@@ -755,179 +1148,443 @@ export const updateUserRole = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "User role updated successfully",
+      message:
+        "User role updated successfully.",
       data: user,
     });
   } catch (error) {
-    console.error("UPDATE USER ROLE ERROR:", error);
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID",
-      });
-    }
+    console.error(
+      "UPDATE USER ROLE ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update user role",
+      message:
+        "Failed to update user role.",
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// TOGGLE USER ACTIVE STATUS
+// TOGGLE USER STATUS
 // =====================================================
-export const toggleUserStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    const user = await User.findById(id);
+export const toggleUserStatus = async (
+  req,
+  res
+) => {
+  try {
+    const user =
+      await User.findById(
+        req.params.id
+      );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message:
+          "User not found.",
       });
     }
 
-    // -------------------------------------------------
-    // DO NOT ALLOW SELF-DEACTIVATION
-    // -------------------------------------------------
-    if (user.clerkUserId === req.clerkUserId) {
+    // =================================================
+    // PREVENT SELF DEACTIVATION
+    // =================================================
+
+    if (
+      req.user &&
+      String(user._id) ===
+        String(req.user._id)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "A user cannot deactivate their own account",
+        message:
+          "You cannot change your own account status.",
       });
     }
 
-    // -------------------------------------------------
+    const newStatus =
+      !user.isActive;
+
+    // =================================================
     // LAST ADMIN PROTECTION
-    // -------------------------------------------------
+    // =================================================
+
     if (
       user.role === "admin" &&
-      user.isActive === true
+      user.isActive &&
+      !newStatus
     ) {
-      const activeAdminCount = await User.countDocuments({
-        role: "admin",
-        isActive: true,
-        _id: { $ne: id },
-      });
+      const adminCount =
+        await User.countDocuments({
+          role: "admin",
+          isActive: true,
+        });
 
-      if (activeAdminCount === 0) {
+      if (adminCount <= 1) {
         return res.status(400).json({
           success: false,
           message:
-            "Cannot deactivate the last active administrator",
+            "The last active admin cannot be deactivated.",
         });
       }
     }
 
-    user.isActive = !user.isActive;
+    user.isActive =
+      newStatus;
 
     await user.save();
 
+    // =================================================
+    // SYNC WITH CLERK
+    // =================================================
+
+    if (newStatus) {
+      await clerkClient.users.unbanUser(
+        user.clerkUserId
+      );
+    } else {
+      await clerkClient.users.banUser(
+        user.clerkUserId
+      );
+    }
+
     return res.status(200).json({
       success: true,
-      message: `User ${
-        user.isActive ? "activated" : "deactivated"
-      } successfully`,
+      message: newStatus
+        ? "User activated successfully."
+        : "User deactivated successfully.",
       data: user,
     });
   } catch (error) {
-    console.error("TOGGLE USER STATUS ERROR:", error);
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID",
-      });
-    }
+    console.error(
+      "TOGGLE USER STATUS ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update user status",
+      message:
+        "Failed to change user status.",
+      error: error.message,
+    });
+  }
+};
+// =====================================================
+// DELETE USER
+//
+// PERMANENT DELETE:
+// 1. Delete user from Clerk
+// 2. Delete user from MongoDB
+//
+// IMPORTANT:
+// - Cannot delete own account
+// - Cannot delete the last active admin
+// =====================================================
+
+export const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    // =================================================
+    // PREVENT SELF DELETE
+    // =================================================
+
+    if (
+      req.user &&
+      String(user._id) === String(req.user._id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account.",
+      });
+    }
+
+    // =================================================
+    // LAST ADMIN PROTECTION
+    // =================================================
+
+    if (user.role === "admin" && user.isActive) {
+      const adminCount = await User.countDocuments({
+        role: "admin",
+        isActive: true,
+      });
+
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "The last active admin cannot be deleted.",
+        });
+      }
+    }
+
+    // =================================================
+    // DELETE FROM CLERK
+    // =================================================
+
+    if (user.clerkUserId) {
+      try {
+        await clerkClient.users.deleteUser(
+          user.clerkUserId
+        );
+      } catch (clerkError) {
+        console.error(
+          "CLERK DELETE ERROR:",
+          clerkError
+        );
+
+        // If Clerk user is already deleted,
+        // continue with MongoDB deletion.
+        const clerkStatus =
+          clerkError?.status ||
+          clerkError?.statusCode;
+
+        if (clerkStatus !== 404) {
+          return res.status(500).json({
+            success: false,
+            message:
+              "Failed to delete user from Clerk. MongoDB user was not deleted.",
+          });
+        }
+      }
+    }
+
+    // =================================================
+    // DELETE FROM MONGODB
+    // =================================================
+
+    await User.findByIdAndDelete(user._id);
+
+    // =================================================
+    // SUCCESS
+    // =================================================
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "User deleted successfully from Clerk and MongoDB.",
+      data: {
+        _id: user._id,
+        clerkUserId: user.clerkUserId,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "DELETE USER ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete user.",
       error: error.message,
     });
   }
 };
 
+
 // =====================================================
-// DELETE USER
+// DELETE MULTIPLE USERS
+//
+// Deletes users from:
+// 1. Clerk
+// 2. MongoDB
+//
+// Body:
+// {
+//   userIds: ["mongoId1", "mongoId2"]
+// }
 // =====================================================
-// IMPORTANT:
-// This performs a SAFE DELETE by deactivating the user.
-// The MongoDB document is retained because other models
-// may reference User._id.
-// =====================================================
-export const deleteUser = async (req, res) => {
+
+export const deleteMultipleUsers = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { userIds } = req.body;
 
-    const user = await User.findById(id);
+    // =================================================
+    // VALIDATION
+    // =================================================
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // -------------------------------------------------
-    // PREVENT SELF DELETE
-    // -------------------------------------------------
-    if (user.clerkUserId === req.clerkUserId) {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "A user cannot delete their own account",
+        message: "Please select at least one user.",
       });
     }
 
-    // -------------------------------------------------
-    // LAST ADMIN PROTECTION
-    // -------------------------------------------------
-    if (user.role === "admin" && user.isActive) {
-      const activeAdminCount = await User.countDocuments({
-        role: "admin",
-        isActive: true,
-        _id: { $ne: id },
-      });
+    // Remove duplicate IDs
+    const uniqueUserIds = [
+      ...new Set(
+        userIds.map((id) => String(id))
+      ),
+    ];
 
-      if (activeAdminCount === 0) {
+    // =================================================
+    // GET USERS
+    // =================================================
+
+    const users = await User.find({
+      _id: { $in: uniqueUserIds },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No users found.",
+      });
+    }
+
+    // =================================================
+    // PREVENT SELF DELETE
+    // =================================================
+
+    const currentUserId =
+      req.user?._id
+        ? String(req.user._id)
+        : null;
+
+    const tryingToDeleteSelf = users.some(
+      (user) =>
+        String(user._id) === currentUserId
+    );
+
+    if (tryingToDeleteSelf) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You cannot delete your own account. Remove yourself from the selection.",
+      });
+    }
+
+    // =================================================
+    // LAST ADMIN PROTECTION
+    // =================================================
+
+    const selectedActiveAdmins = users.filter(
+      (user) =>
+        user.role === "admin" &&
+        user.isActive
+    ).length;
+
+    if (selectedActiveAdmins > 0) {
+      const totalActiveAdmins =
+        await User.countDocuments({
+          role: "admin",
+          isActive: true,
+        });
+
+      if (
+        totalActiveAdmins -
+          selectedActiveAdmins <
+        1
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            "Cannot deactivate the last active administrator",
+            "At least one active admin must remain. Remove the admin account from the selection.",
         });
       }
     }
 
-    // -------------------------------------------------
-    // SAFE DELETE = DEACTIVATE
-    // -------------------------------------------------
-    user.isActive = false;
+    // =================================================
+    // DELETE FROM CLERK
+    // =================================================
 
-    await user.save();
+    const clerkErrors = [];
 
-    return res.status(200).json({
-      success: true,
-      message: "User deactivated successfully",
-      data: user,
-    });
-  } catch (error) {
-    console.error("DELETE USER ERROR:", error);
+    for (const user of users) {
+      if (!user.clerkUserId) {
+        continue;
+      }
 
-    if (error.name === "CastError") {
-      return res.status(400).json({
+      try {
+        await clerkClient.users.deleteUser(
+          user.clerkUserId
+        );
+      } catch (clerkError) {
+        const clerkStatus =
+          clerkError?.status ||
+          clerkError?.statusCode;
+
+        // Already deleted in Clerk
+        if (clerkStatus === 404) {
+          continue;
+        }
+
+        console.error(
+          `Failed to delete Clerk user ${user.clerkUserId}:`,
+          clerkError
+        );
+
+        clerkErrors.push({
+          userId: user._id,
+          name: user.name,
+          message:
+            clerkError?.message ||
+            "Failed to delete Clerk account.",
+        });
+      }
+    }
+
+    // =================================================
+    // IF ANY CLERK DELETE FAILED
+    // DO NOT DELETE THOSE USERS FROM MONGO
+    // =================================================
+
+    if (clerkErrors.length > 0) {
+      return res.status(500).json({
         success: false,
-        message: "Invalid user ID",
+        message:
+          "Some users could not be deleted from Clerk. MongoDB records were kept.",
+        errors: clerkErrors,
       });
     }
 
+    // =================================================
+    // DELETE FROM MONGODB
+    // =================================================
+
+    const deleteResult =
+      await User.deleteMany({
+        _id: {
+          $in: users.map(
+            (user) => user._id
+          ),
+        },
+      });
+
+    // =================================================
+    // SUCCESS
+    // =================================================
+
+    return res.status(200).json({
+      success: true,
+      message:
+        `${deleteResult.deletedCount} user(s) deleted successfully from Clerk and MongoDB.`,
+      deletedCount:
+        deleteResult.deletedCount,
+    });
+
+  } catch (error) {
+    console.error(
+      "DELETE MULTIPLE USERS ERROR:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
-      message: "Failed to deactivate user",
+      message:
+        "Failed to delete selected users.",
       error: error.message,
     });
   }
@@ -936,23 +1593,22 @@ export const deleteUser = async (req, res) => {
 // =====================================================
 // RESTORE USER
 // =====================================================
-export const restoreUser = async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    const user = await User.findById(id);
+export const restoreUser = async (
+  req,
+  res
+) => {
+  try {
+    const user =
+      await User.findById(
+        req.params.id
+      );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
-      });
-    }
-
-    if (user.isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "User is already active",
+        message:
+          "User not found.",
       });
     }
 
@@ -960,24 +1616,30 @@ export const restoreUser = async (req, res) => {
 
     await user.save();
 
+    // =================================================
+    // UNBAN CLERK
+    // =================================================
+
+    await clerkClient.users.unbanUser(
+      user.clerkUserId
+    );
+
     return res.status(200).json({
       success: true,
-      message: "User restored successfully",
+      message:
+        "User restored successfully.",
       data: user,
     });
   } catch (error) {
-    console.error("RESTORE USER ERROR:", error);
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID",
-      });
-    }
+    console.error(
+      "RESTORE USER ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to restore user",
+      message:
+        "Failed to restore user.",
       error: error.message,
     });
   }

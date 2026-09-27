@@ -22,14 +22,7 @@ const router = express.Router();
 // Get all events
 router.get(
   "/",
-  requireAuth,
-  resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer",
-    "college_coordinator",
-    "student"
-  ),
+  
   getAllEvents
 );
 

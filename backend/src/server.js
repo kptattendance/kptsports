@@ -3,10 +3,12 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { clerkMiddleware } from "@clerk/express";
-import studentRoutes from "./routes/studentRoutes.js";
 import institutionRoutes from "./routes/institutionRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import sportsMeetRoutes from "./routes/sportsMeetRoutes.js";
+import sportsApplicationRoutes from "./routes/sportsApplicationRoutes.js";
+import sportsStatisticsRoutes from "./routes/sportsStatisticsRoutes.js";
+
 import userRoutes from "./routes/userRoutes.js";
 import connectDB from "./config/db.js";
 
@@ -43,8 +45,6 @@ app.get("/", (req, res) => {
 // --------------------------------------------------
 
 
-
-app.use("/api/students", studentRoutes);
 app.use(
   "/api/events",
   eventRoutes
@@ -55,6 +55,16 @@ app.use(
 );
 app.use("/api/sports-meets", sportsMeetRoutes);
 app.use("/api/users", userRoutes);
+
+app.use(
+  "/api/sports-applications",
+  sportsApplicationRoutes
+);
+app.use(
+  "/api/sports-statistics",
+  sportsStatisticsRoutes
+);
+
 // --------------------------------------------------
 // Start server
 // --------------------------------------------------

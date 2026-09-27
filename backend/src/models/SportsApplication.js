@@ -1,21 +1,33 @@
 import mongoose from "mongoose";
 
-const studentSchema = new mongoose.Schema(
+const sportsApplicationSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
+      index: true,
+    },
+
+    meet: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SportsMeet",
+      required: true,
+      index: true,
+    },
+
+    collegeCode: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
     },
 
     registerNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       uppercase: true,
-      index: true,
     },
 
     name: {
@@ -33,6 +45,7 @@ const studentSchema = new mongoose.Schema(
     motherName: {
       type: String,
       trim: true,
+      default: "",
     },
 
     dateOfBirth: {
@@ -58,12 +71,6 @@ const studentSchema = new mongoose.Schema(
       trim: true,
     },
 
-    institution: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Institution",
-      required: true,
-    },
-
     phone: {
       type: String,
       required: true,
@@ -74,13 +81,16 @@ const studentSchema = new mongoose.Schema(
       type: String,
       lowercase: true,
       trim: true,
+      default: "",
     },
-participationCategory: {
-  type: String,
-  enum: ["regular", "physically_challenged"],
-  default: "regular",
-  required: true,
-},
+
+    participationCategory: {
+      type: String,
+      enum: ["regular", "physically_challenged"],
+      default: "regular",
+      required: true,
+    },
+
     photo: {
       url: {
         type: String,
@@ -93,14 +103,26 @@ participationCategory: {
       },
     },
 
-    isProfileComplete: {
-      type: Boolean,
-      default: false,
+    selectedEvents: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Event",
+      },
+    ],
+
+    status: {
+      type: String,
+      enum: [
+        "submitted",
+        "approved",
+        "rejected",
+      ],
+      default: "submitted",
     },
 
-    isActive: {
-      type: Boolean,
-      default: true,
+    submittedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -108,9 +130,19 @@ participationCategory: {
   }
 );
 
-const Student = mongoose.model(
-  "Student",
-  studentSchema
+sportsApplicationSchema.index(
+  {
+    meet: 1,
+    user: 1,
+  },
+  {
+    unique: true,
+  }
 );
 
-export default Student;
+const SportsApplication = mongoose.model(
+  "SportsApplication",
+  sportsApplicationSchema
+);
+
+export default SportsApplication;

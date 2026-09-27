@@ -62,26 +62,31 @@ export default function AuthCheckPage() {
           );
         }
 
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL;
+
+        const config = {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        };
+
         // =================================================
-        // CHECK WHETHER USER EXISTS IN MONGODB
+        // STEP 1: CHECK EXISTING MONGO USER
         // =================================================
 
         let response;
 
         try {
           response = await axios.get(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/users/me`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+            `${apiUrl}/api/users/me`,
+            config
           );
         } catch (error) {
 
-          // =============================================
-          // FIRST TIME USER
-          // =============================================
+          // =================================================
+          // USER DOES NOT EXIST IN MONGO
+          // =================================================
 
           if (error.response?.status === 404) {
 
@@ -104,9 +109,13 @@ export default function AuthCheckPage() {
               );
             }
 
-            const createResponse =
-              await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/users/me`,
+            // =================================================
+            // CREATE MONGO USER
+            // =================================================
+
+            try {
+              response = await axios.post(
+                `${apiUrl}/api/users/me`,
                 {
                   name,
                   email,
@@ -114,14 +123,33 @@ export default function AuthCheckPage() {
                     user?.primaryPhoneNumber
                       ?.phoneNumber || "",
                 },
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
+                config
               );
+            } catch (createError) {
 
-            response = createResponse;
+              // =================================================
+              // IMPORTANT:
+              // IF USER WAS CREATED ALREADY, FETCH IT AGAIN
+              // =================================================
+
+              if (
+                createError.response?.status === 409
+              ) {
+
+                setMessage(
+                  "Account found. Loading your Sports Meet account..."
+                );
+
+                response = await axios.get(
+                  `${apiUrl}/api/users/me`,
+                  config
+                );
+
+              } else {
+                throw createError;
+              }
+            }
+
           } else {
             throw error;
           }
@@ -140,11 +168,18 @@ export default function AuthCheckPage() {
           );
         }
 
+        console.log(
+          "Sports Meet Mongo User:",
+          applicationUser
+        );
+
         // =================================================
         // CHECK ACTIVE STATUS
         // =================================================
 
-        if (applicationUser.isActive === false) {
+        if (
+          applicationUser.isActive === false
+        ) {
           setMessage(
             "This account has been deactivated."
           );
@@ -190,6 +225,8 @@ export default function AuthCheckPage() {
             setTimeout(() => {
               router.replace("/");
             }, 2000);
+
+            break;
         }
 
       } catch (error) {
@@ -199,13 +236,27 @@ export default function AuthCheckPage() {
           error
         );
 
-        if (error.response?.status === 401) {
+        console.error(
+          "Status:",
+          error.response?.status
+        );
+
+        console.error(
+          "Response:",
+          error.response?.data
+        );
+
+        if (
+          error.response?.status === 401
+        ) {
 
           setMessage(
             "Authentication failed. Please sign in again."
           );
 
-        } else if (error.response?.status === 403) {
+        } else if (
+          error.response?.status === 403
+        ) {
 
           setMessage(
             "Your account does not have permission to access the system."
@@ -230,7 +281,6 @@ export default function AuthCheckPage() {
         setTimeout(() => {
           router.replace("/");
         }, 2000);
-
       } finally {
         setProcessing(false);
       }
@@ -249,16 +299,16 @@ export default function AuthCheckPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-orange-50 px-4">
 
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-orange-100 bg-white p-8 text-center shadow-sm">
 
         {processing && (
-          <div className="mx-auto mb-6 h-11 w-11 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+          <div className="mx-auto mb-6 h-11 w-11 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
         )}
 
         {!processing && (
-          <div className="mx-auto mb-6 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+          <div className="mx-auto mb-6 flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-orange-600">
             !
           </div>
         )}

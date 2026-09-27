@@ -12,6 +12,7 @@ import {
   toggleUserStatus,
   deleteUser,
   restoreUser,
+  deleteMultipleUsers,
 } from "../controllers/userController.js";
 
 import requireAuth from "../middleware/authMiddleware.js";
@@ -121,4 +122,12 @@ router.patch(
   restoreUser
 );
 
+
+router.post(
+  "/bulk-delete",
+  requireAuth,
+  resolveUser,
+  requireRole("admin"),
+  deleteMultipleUsers
+);
 export default router;
