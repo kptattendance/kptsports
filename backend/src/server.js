@@ -8,6 +8,8 @@ import eventRoutes from "./routes/eventRoutes.js";
 import sportsMeetRoutes from "./routes/sportsMeetRoutes.js";
 import sportsApplicationRoutes from "./routes/sportsApplicationRoutes.js";
 import sportsStatisticsRoutes from "./routes/sportsStatisticsRoutes.js";
+import sportsResultRoutes from "./routes/sportsResultRoutes.js";
+import certificateRoutes from "./routes/certificateRoutes.js";
 
 import userRoutes from "./routes/userRoutes.js";
 import connectDB from "./config/db.js";
@@ -63,6 +65,15 @@ app.use(
 app.use(
   "/api/sports-statistics",
   sportsStatisticsRoutes
+);
+app.use(
+  "/api/sports-results",
+  sportsResultRoutes
+);
+
+app.use(
+  "/api/certificates",
+  certificateRoutes
 );
 
 // --------------------------------------------------

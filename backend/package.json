@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "src/server.js",
-   "type": "module",
+  "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js"
@@ -20,6 +20,7 @@
     "express": "^5.2.1",
     "mongoose": "^9.10.2",
     "multer": "^2.4.0",
+    "pdfkit": "^0.20.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
