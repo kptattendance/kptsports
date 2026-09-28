@@ -206,7 +206,8 @@ const generateCertificatePdf = async ({
   // =====================================================
   // CLOUDINARY LOGOS
   // =====================================================
-
+const collegeWatermarkUrl =
+  "https://res.cloudinary.com/tszalf5h/image/upload/v1790564455/clgimg1.jpg";
   const logo3Url =
     "https://res.cloudinary.com/dnreqxbdw/image/upload/v1757932916/logo3_vptob4.jpg";
 
@@ -291,24 +292,36 @@ const generateCertificatePdf = async ({
   // DOWNLOAD HEADER LOGOS
   // =====================================================
 
-  const [
-    logo3Buffer,
-    logo4Buffer,
-    logo5Buffer,
-  ] = await Promise.all([
-    downloadImage(
-      logo3Url,
-      "LEFT COLLEGE LOGO"
-    ),
-    downloadImage(
-      logo4Url,
-      "RIGHT COLLEGE LOGO"
-    ),
-    downloadImage(
-      logo5Url,
-      "KARNATAKA EMBLEM"
-    ),
-  ]);
+// =====================================================
+// DOWNLOAD HEADER LOGOS + COLLEGE WATERMARK
+// =====================================================
+
+const [
+  logo3Buffer,
+  logo4Buffer,
+  logo5Buffer,
+  collegeWatermarkBuffer,
+] = await Promise.all([
+  downloadImage(
+    logo3Url,
+    "LEFT COLLEGE LOGO"
+  ),
+
+  downloadImage(
+    logo4Url,
+    "RIGHT COLLEGE LOGO"
+  ),
+
+  downloadImage(
+    logo5Url,
+    "KARNATAKA EMBLEM"
+  ),
+
+  downloadImage(
+    collegeWatermarkUrl,
+    "COLLEGE BUILDING WATERMARK"
+  ),
+]);
 
   // =====================================================
   // DOWNLOAD STUDENT PHOTO
@@ -475,18 +488,56 @@ const generateCertificatePdf = async ({
         const TEXT =
           "#25354A";
 
-        // =================================================
-        // BACKGROUND
-        // =================================================
+// =================================================
+// BACKGROUND
+// =================================================
 
-        doc
-          .rect(
-            0,
-            0,
-            pageWidth,
-            pageHeight
-          )
-          .fill("#FFFFFF");
+doc
+  .rect(
+    0,
+    0,
+    pageWidth,
+    pageHeight
+  )
+  .fill("#FFFFFF");
+
+// =================================================
+// COLLEGE BUILDING WATERMARK
+// =================================================
+
+if (collegeWatermarkBuffer) {
+  try {
+    console.log(
+      "Adding college building watermark..."
+    );
+
+    doc.save();
+
+    doc.opacity(0.07);
+
+    doc.image(
+      collegeWatermarkBuffer,
+      centerX - 260,
+      190,
+      {
+        fit: [520, 350],
+        align: "center",
+        valign: "center",
+      }
+    );
+
+    doc.restore();
+
+    console.log(
+      "SUCCESS: College building watermark inserted."
+    );
+  } catch (error) {
+    console.error(
+      "COLLEGE WATERMARK PDF ERROR:",
+      error.message
+    );
+  }
+}
 
         // =================================================
         // TOP LEFT DECORATION
