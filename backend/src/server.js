@@ -10,8 +10,8 @@ import sportsApplicationRoutes from "./routes/sportsApplicationRoutes.js";
 import sportsStatisticsRoutes from "./routes/sportsStatisticsRoutes.js";
 import sportsResultRoutes from "./routes/sportsResultRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
 
+import userRoutes from "./routes/userRoutes.js";
 import connectDB from "./config/db.js";
 
 dotenv.config();
@@ -26,10 +26,18 @@ app.use(
   cors({
     origin: [
       "https://sports.kptmangaluru.in",
+      "https://local.sports.kptmangaluru.in",
       "http://localhost:3000",
     ],
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -60,13 +68,25 @@ app.get("/", (req, res) => {
 // API routes
 // --------------------------------------------------
 
-app.use("/api/events", eventRoutes);
+app.use(
+  "/api/events",
+  eventRoutes
+);
 
-app.use("/api/institutions", institutionRoutes);
+app.use(
+  "/api/institutions",
+  institutionRoutes
+);
 
-app.use("/api/sports-meets", sportsMeetRoutes);
+app.use(
+  "/api/sports-meets",
+  sportsMeetRoutes
+);
 
-app.use("/api/users", userRoutes);
+app.use(
+  "/api/users",
+  userRoutes
+);
 
 app.use(
   "/api/sports-applications",
