@@ -162,20 +162,12 @@ export const createUser = async (req, res) => {
       clerkCreateData.banned = true;
     }
 
-    console.log("Creating Clerk user:", {
-      email: cleanEmail,
-      role,
-      hasPhone: Boolean(cleanPhone),
-    });
+  
 
     clerkUser = await clerkClient.users.createUser(
       clerkCreateData
     );
 
-    console.log(
-      "Clerk user created:",
-      clerkUser.id
-    );
 
     // =================================================
     // CREATE MONGODB USER
@@ -245,10 +237,7 @@ export const createUser = async (req, res) => {
           clerkUser.id
         );
 
-        console.log(
-          "Clerk user rolled back:",
-          clerkUser.id
-        );
+      
       } catch (rollbackError) {
         console.error(
           "CLERK ROLLBACK ERROR:",

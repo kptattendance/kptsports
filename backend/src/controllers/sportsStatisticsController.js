@@ -39,15 +39,24 @@ export const getPublicSportsStatistics = async (req, res) => {
     if (!meet) {
       return res.json({
         success: true,
+
         data: {
           meet: null,
+
           statistics: {
             participants: 0,
             institutions: 0,
             events: 0,
             eventEntries: 0,
           },
+
+          // NEW
+          departmentStatistics: [],
+
+          // EXISTING
           institutes: [],
+
+          // EXISTING
           eventStatistics: [],
         },
       });
@@ -136,7 +145,130 @@ export const getPublicSportsStatistics = async (req, res) => {
 
     /*
     =====================================================
-    INSTITUTE-WISE PARTICIPATION
+    1. DEPARTMENT + SEMESTER WISE
+       EVENT PARTICIPATION
+    =====================================================
+    */
+
+    const departmentSemesterMap =
+      new Map();
+
+    applications.forEach(
+      (application) => {
+        const department =
+          application.branch?.trim();
+
+        const semester =
+          Number(application.semester);
+
+        /*
+        Ignore applications where
+        department or semester is missing.
+        */
+
+        if (
+          !department ||
+          !semester
+        ) {
+          return;
+        }
+
+        const key =
+          `${department}__${semester}`;
+
+        if (
+          !departmentSemesterMap.has(
+            key
+          )
+        ) {
+          departmentSemesterMap.set(
+            key,
+            {
+              department,
+              semester,
+              participants: 0,
+              events: {},
+            }
+          );
+        }
+
+        const departmentSemester =
+          departmentSemesterMap.get(
+            key
+          );
+
+        /*
+        PARTICIPANT COUNT
+        */
+
+        departmentSemester.participants +=
+          1;
+
+        /*
+        EVENT COUNTS
+        */
+
+        const selectedEvents =
+          application.selectedEvents ||
+          [];
+
+        selectedEvents.forEach(
+          (eventId) => {
+            const id =
+              String(eventId);
+
+            departmentSemester.events[
+              id
+            ] =
+              (
+                departmentSemester.events[
+                  id
+                ] || 0
+              ) + 1;
+          }
+        );
+      }
+    );
+
+    const departmentStatistics =
+      Array.from(
+        departmentSemesterMap.values()
+      )
+        .map((item) => ({
+          department:
+            item.department,
+
+          semester:
+            item.semester,
+
+          participants:
+            item.participants,
+
+          events:
+            item.events,
+        }))
+        .sort((a, b) => {
+          const departmentCompare =
+            a.department.localeCompare(
+              b.department
+            );
+
+          if (
+            departmentCompare !== 0
+          ) {
+            return departmentCompare;
+          }
+
+          return (
+            a.semester -
+            b.semester
+          );
+        });
+
+    /*
+    =====================================================
+    2. EXISTING
+       INSTITUTE-WISE PARTICIPATION
     =====================================================
     */
 
@@ -148,7 +280,9 @@ export const getPublicSportsStatistics = async (req, res) => {
           application.collegeCode ||
           "UNKNOWN";
 
-        if (!instituteMap.has(code)) {
+        if (
+          !instituteMap.has(code)
+        ) {
           instituteMap.set(code, {
             code,
             name: code,
@@ -212,8 +346,10 @@ export const getPublicSportsStatistics = async (req, res) => {
               String(eventId);
 
             institute.events[id] =
-              (institute.events[id] || 0) +
-              1;
+              (
+                institute.events[id] ||
+                0
+              ) + 1;
           }
         );
       }
@@ -260,6 +396,7 @@ export const getPublicSportsStatistics = async (req, res) => {
       )
         .map((institute) => ({
           ...institute,
+
           name:
             institutionNameMap.get(
               institute.code
@@ -274,7 +411,8 @@ export const getPublicSportsStatistics = async (req, res) => {
 
     /*
     =====================================================
-    EVENT-WISE STATISTICS
+    3. EXISTING
+       EVENT-WISE STATISTICS
     =====================================================
     */
 
@@ -336,9 +474,13 @@ export const getPublicSportsStatistics = async (req, res) => {
           name: event.name,
           category: event.category,
           gender: event.gender,
+
           participationCategory:
             event.participationCategory,
-          eventType: event.eventType,
+
+          eventType:
+            event.eventType,
+
           total,
           male,
           female,
@@ -375,8 +517,22 @@ export const getPublicSportsStatistics = async (req, res) => {
           eventEntries,
         },
 
+        /*
+        NEW FIRST TABLE DATA
+        */
+
+        departmentStatistics,
+
+        /*
+        EXISTING SECOND TABLE DATA
+        */
+
         institutes:
           instituteStatistics,
+
+        /*
+        EXISTING THIRD TABLE DATA
+        */
 
         eventStatistics,
       },

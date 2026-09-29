@@ -406,12 +406,13 @@ export const getMyApplication = async (req, res) => {
         .populate("meet")
         .populate("selectedEvents");
 
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: "Application not found.",
-      });
-    }
+   if (!application) {
+  return res.status(200).json({
+    success: true,
+    data: null,
+    message: "No application found.",
+  });
+}
 
     return res.status(200).json({
       success: true,
