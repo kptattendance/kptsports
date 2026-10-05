@@ -97,8 +97,10 @@ export const metadata = {
   },
 
   verification: {
-    google: "PASTE_GOOGLE_SEARCH_CONSOLE_VERIFICATION_CODE_HERE",
-  },
+  google: "O67tWHY9xLUtBxSrAxCliKSiLNqr1KiTwmd_uKb_iVA",
+},
+
+ 
 };
 
 export default function RootLayout({ children }) {
