@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { UserRound, LogOut, ChevronDown, Trophy } from "lucide-react";
+import RoleProtected from "../components/RoleProtected";
 
 export default function StudentLayout({ children }) {
   const { user } = useUser();
@@ -160,7 +161,12 @@ export default function StudentLayout({ children }) {
       {/* =====================================================
           PAGE CONTENT
       ===================================================== */}
+         <RoleProtected
+      allowedRoles={["student"]}
+    >
+
       <main>{children}</main>
+    </RoleProtected>
     </div>
   );
 }
