@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
-
-import { getCurrentUser } from "@/lib/getCurrentUser";
+import axios from "axios";
 
 const ROLE_HOME = {
   admin: "/admin",
@@ -14,8 +13,8 @@ const ROLE_HOME = {
 };
 
 export default function RoleProtected({
-  allowedRoles = [],
   children,
+  allowedRoles = [],
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -29,162 +28,136 @@ export default function RoleProtected({
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
+    if (!isLoaded) return;
 
-    let cancelled = false;
-
-    const verifyAccess = async () => {
+    const checkAccess = async () => {
       try {
-        // ============================================
-        // NOT SIGNED IN
-        // ============================================
-
+        // Not logged in
         if (!isSignedIn) {
-          router.replace("/");
+          router.replace("/sign-in");
           return;
         }
 
-        // ============================================
-        // GET CLERK TOKEN
-        // ============================================
-
+        // Get Clerk token
         const token = await getToken();
 
         if (!token) {
-          router.replace("/");
+          router.replace("/unauthorized");
           return;
         }
 
-        // ============================================
-        // GET MONGO USER
-        // ============================================
+        // Backend URL
+        const API_URL =
+          process.env.NEXT_PUBLIC_API_URL ||
+          "http://localhost:5000";
 
-        const data = await getCurrentUser(getToken);
+        // Get current user directly from backend
+        const response = await axios.get(
+          `${API_URL}/api/users/me`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-        const user = data?.user;
+        const user = response.data?.user;
 
         if (!user) {
-          router.replace("/");
+          router.replace("/unauthorized");
           return;
         }
 
-        // ============================================
-        // ACTIVE CHECK
-        // ============================================
-
+        // Check active status if backend provides it
         if (user.isActive === false) {
-          router.replace("/");
+          router.replace("/unauthorized");
           return;
         }
 
-        // ============================================
-        // ROLE
-        // ============================================
+        const role = user.role;
 
-        const role = String(user.role || "")
-          .trim()
-          .toLowerCase();
-
-        if (!role) {
-          router.replace("/");
-          return;
-        }
-
-        // ============================================
-        // ALLOWED ROLES
-        // ============================================
-
-        const normalizedAllowedRoles =
-          allowedRoles.map((item) =>
-            String(item)
-              .trim()
-              .toLowerCase()
-          );
-
-        const isAllowed =
-          normalizedAllowedRoles.includes(role);
-
-        // ============================================
-        // USER DOES NOT HAVE ACCESS
-        // ============================================
-
-        if (!isAllowed) {
-          const correctHome =
-            ROLE_HOME[role];
+        // Role is not allowed for this section
+        if (!allowedRoles.includes(role)) {
+          const correctHome = ROLE_HOME[role];
 
           if (correctHome) {
             router.replace(correctHome);
           } else {
-            router.replace("/");
+            router.replace("/unauthorized");
           }
 
           return;
         }
 
-        // ============================================
-        // ACCESS GRANTED
-        // ============================================
+        // Special protection for club-specific pages
+        if (
+          (role === "club_incharge" ||
+            role === "club_officer") &&
+          pathname
+        ) {
+          const pathParts = pathname.split("/");
 
-        if (!cancelled) {
-          setChecking(false);
+          const urlRole = pathParts[1];
+          const urlClubCode = pathParts[2];
+
+          if (
+            (urlRole === "club-incharge" ||
+              urlRole === "club-officer") &&
+            urlClubCode
+          ) {
+            const userClubCode =
+              user.clubId?.code?.toLowerCase();
+
+            if (
+              !userClubCode ||
+              userClubCode !== urlClubCode.toLowerCase()
+            ) {
+              const correctPath =
+                role === "club_incharge"
+                  ? `/club-incharge/${userClubCode}`
+                  : `/club-officer/${userClubCode}`;
+
+              if (userClubCode) {
+                router.replace(correctPath);
+              } else {
+                router.replace("/unauthorized");
+              }
+
+              return;
+            }
+          }
         }
+
+        // Access allowed
+        setChecking(false);
       } catch (error) {
         console.error(
-          "ROLE PROTECTION ERROR:",
-          error
+          "Role protection error:",
+          error?.response?.data || error.message
         );
 
-        console.error(
-          "Status:",
-          error?.response?.status
-        );
+        if (error?.response?.status === 401) {
+          router.replace("/sign-in");
+          return;
+        }
 
-        console.error(
-          "Response:",
-          error?.response?.data
-        );
-
-        router.replace("/");
+        router.replace("/unauthorized");
       }
     };
 
-    verifyAccess();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    isLoaded,
-    isSignedIn,
-    getToken,
-    router,
-    pathname,
-    allowedRoles,
-  ]);
-
-  // ============================================
-  // LOADING
-  // ============================================
+    checkAccess();
+  }, [isLoaded, isSignedIn, getToken, router, pathname]);
 
   if (!isLoaded || checking) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-orange-50 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-orange-100 bg-white p-8 text-center shadow-sm">
-
-          <div className="mx-auto mb-6 h-11 w-11 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
-
-          <h1 className="text-xl font-semibold text-slate-900">
-            Checking access
-          </h1>
-
-          <p className="mt-3 text-sm leading-6 text-slate-500">
-            Verifying account permissions...
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+          <p className="text-sm text-slate-500">
+            Checking access...
           </p>
-
         </div>
-      </main>
+      </div>
     );
   }
 
