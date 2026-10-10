@@ -1,4 +1,6 @@
 import SportsMeet from "../models/SportsMeet.js";
+import escapeRegex from "../utils/escapeRegex.js";
+import sendError from "../utils/sendError.js";
 
 // =====================================================
 // CREATE SPORTS MEET
@@ -100,11 +102,7 @@ export const createSportsMeet = async (req, res) => {
   } catch (error) {
     console.error("CREATE SPORTS MEET ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create sports meet",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to create sports meet");
   }
 };
 
@@ -125,9 +123,9 @@ export const getAllSportsMeets = async (req, res) => {
     // Search by name / short name / venue
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { shortName: { $regex: search, $options: "i" } },
-        { venue: { $regex: search, $options: "i" } },
+        { name: { $regex: escapeRegex(search), $options: "i" } },
+        { shortName: { $regex: escapeRegex(search), $options: "i" } },
+        { venue: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -156,11 +154,7 @@ export const getAllSportsMeets = async (req, res) => {
   } catch (error) {
     console.error("GET SPORTS MEETS ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch sports meets",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch sports meets");
   }
 };
 
@@ -187,11 +181,7 @@ export const getSportsMeetById = async (req, res) => {
   } catch (error) {
     console.error("GET SPORTS MEET BY ID ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch sports meet",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch sports meet");
   }
 };
 
@@ -371,11 +361,7 @@ export const updateSportsMeet = async (req, res) => {
   } catch (error) {
     console.error("UPDATE SPORTS MEET ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update sports meet",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update sports meet");
   }
 };
 
@@ -415,11 +401,7 @@ export const deleteSportsMeet = async (req, res) => {
   } catch (error) {
     console.error("DELETE SPORTS MEET ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete sports meet",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete sports meet");
   }
 };
 
@@ -467,11 +449,7 @@ export const updateSportsMeetStatus = async (req, res) => {
   } catch (error) {
     console.error("UPDATE SPORTS MEET STATUS ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update sports meet status",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update sports meet status");
   }
 };
 
@@ -505,10 +483,6 @@ export const toggleSportsMeetActive = async (req, res) => {
   } catch (error) {
     console.error("TOGGLE SPORTS MEET ERROR:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update active status",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update active status");
   }
 };

@@ -94,21 +94,6 @@ export default function AuthCheckPage() {
               "Creating your Sports Meet account..."
             );
 
-            const email =
-              user?.primaryEmailAddress?.emailAddress;
-
-            const name =
-              user?.fullName ||
-              user?.firstName ||
-              email?.split("@")[0] ||
-              "Student";
-
-            if (!email) {
-              throw new Error(
-                "Email address is not available from your Clerk account."
-              );
-            }
-
             // =================================================
             // CREATE MONGO USER
             // =================================================
@@ -116,13 +101,7 @@ export default function AuthCheckPage() {
             try {
               response = await axios.post(
                 `${apiUrl}/api/users/me`,
-                {
-                  name,
-                  email,
-                  phone:
-                    user?.primaryPhoneNumber
-                      ?.phoneNumber || "",
-                },
+                {},
                 config
               );
             } catch (createError) {
@@ -168,10 +147,6 @@ export default function AuthCheckPage() {
           );
         }
 
-        console.log(
-          "Sports Meet Mongo User:",
-          applicationUser
-        );
 
         // =================================================
         // CHECK ACTIVE STATUS

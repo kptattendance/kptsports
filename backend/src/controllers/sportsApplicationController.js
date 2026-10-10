@@ -1,46 +1,12 @@
 import SportsApplication from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
-import User from "../models/User.js";
-import cloudinary from "../config/cloudinary.js";
-
-// ======================================================
-// HELPER: Upload image buffer to Cloudinary
-// ======================================================
-
-const uploadToCloudinary = (buffer) => {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "sports-meet/students",
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }
-    );
-
-    stream.end(buffer);
-  });
-};
-
-// ======================================================
-// HELPER: Delete image from Cloudinary
-// ======================================================
-
-const deleteFromCloudinary = async (publicId) => {
-  if (!publicId) return;
-
-  try {
-    await cloudinary.uploader.destroy(publicId);
-  } catch (error) {
-    console.error("Cloudinary delete error:", error.message);
-  }
-};
+import escapeRegex from "../utils/escapeRegex.js";
+import sendError from "../utils/sendError.js";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../utils/uploadToCloudinary.js";
 
 // ======================================================
 // HELPER: Validate Events
@@ -130,27 +96,11 @@ const validateEvents = async ({
 // ======================================================
 
 export const createApplication = async (req, res) => {
+  let uploadedPhoto = null;
+  let application = null;
+
   try {
-    const clerkUserId = req.clerkUserId;
-
-    if (!clerkUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "User authentication required.",
-      });
-    }
-
-    const user = await User.findOne({
-      clerkUserId,
-      isActive: true,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User account not found.",
-      });
-    }
+    const user = req.user;
 
     const {
       meetId,
@@ -297,7 +247,7 @@ export const createApplication = async (req, res) => {
     // Upload photo
     // ----------------------------------------------------
 
-    const uploadedPhoto = await uploadToCloudinary(
+    uploadedPhoto = await uploadToCloudinary(
       req.file.buffer
     );
 
@@ -305,7 +255,7 @@ export const createApplication = async (req, res) => {
     // Create application
     // ----------------------------------------------------
 
-    const application = await SportsApplication.create({
+    application = await SportsApplication.create({
       user: user._id,
 
       meet: meetId,
@@ -362,11 +312,22 @@ export const createApplication = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create application.",
-      error: error.message,
-    });
+    // Photo was uploaded but the application was not saved
+    if (uploadedPhoto && !application) {
+      await deleteFromCloudinary(
+        uploadedPhoto.public_id
+      );
+    }
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "An application has already been submitted for this sports meet.",
+      });
+    }
+
+    return sendError(res, error, "Failed to create application.");
   }
 };
 
@@ -377,19 +338,7 @@ export const createApplication = async (req, res) => {
 
 export const getMyApplication = async (req, res) => {
   try {
-    const clerkUserId = req.clerkUserId;
-
-    const user = await User.findOne({
-      clerkUserId,
-      isActive: true,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User account not found.",
-      });
-    }
+    const user = req.user;
 
     const { meetId } = req.query;
 
@@ -424,11 +373,7 @@ export const getMyApplication = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch application.");
   }
 };
 
@@ -511,19 +456,19 @@ export const getAllApplications = async (req, res) => {
       query.$or = [
         {
           name: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
         {
           registerNumber: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
         {
           collegeCode: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
@@ -574,11 +519,7 @@ export const getAllApplications = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch applications.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch applications.");
   }
 };
 
@@ -617,11 +558,7 @@ export const getApplicationById = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch application.");
   }
 };
 
@@ -635,17 +572,12 @@ export const updateMyApplication = async (
   res
 ) => {
   try {
-    const clerkUserId = req.clerkUserId;
+    const user = req.user;
 
-    const user = await User.findOne({
-      clerkUserId,
-      isActive: true,
-    });
-
-    if (!user) {
-      return res.status(404).json({
+    if (!req.body?.meetId) {
+      return res.status(400).json({
         success: false,
-        message: "User account not found.",
+        message: "meetId is required.",
       });
     }
 
@@ -848,11 +780,7 @@ export const updateMyApplication = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update application.");
   }
 };
 
@@ -1046,11 +974,7 @@ export const updateApplication = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update application.");
   }
 };
 
@@ -1064,17 +988,12 @@ export const deleteMyApplication = async (
   res
 ) => {
   try {
-    const clerkUserId = req.clerkUserId;
+    const user = req.user;
 
-    const user = await User.findOne({
-      clerkUserId,
-      isActive: true,
-    });
-
-    if (!user) {
-      return res.status(404).json({
+    if (!req.query.meetId) {
+      return res.status(400).json({
         success: false,
-        message: "User account not found.",
+        message: "meetId is required.",
       });
     }
 
@@ -1129,11 +1048,7 @@ export const deleteMyApplication = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete application.");
   }
 };
 
@@ -1179,10 +1094,6 @@ export const deleteApplication = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete application.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete application.");
   }
 };

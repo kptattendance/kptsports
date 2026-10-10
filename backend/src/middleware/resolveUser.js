@@ -14,13 +14,19 @@ const resolveUser = async (req, res, next) => {
     // Find MongoDB application user
     const user = await User.findOne({
       clerkUserId: req.clerkUserId,
-      isActive: true,
     });
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "Application user not found",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "User account is inactive",
       });
     }
 

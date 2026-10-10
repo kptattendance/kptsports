@@ -1,4 +1,18 @@
 import Institution from "../models/Institution.js";
+import escapeRegex from "../utils/escapeRegex.js";
+import sendError from "../utils/sendError.js";
+
+// Contact details are only visible to staff.
+// Students only need the list of colleges.
+const STAFF_ROLES = ["admin", "sports_officer"];
+
+const PUBLIC_FIELDS =
+  "code name shortName district isActive";
+
+const visibleFields = (user) =>
+  STAFF_ROLES.includes(user?.role)
+    ? ""
+    : PUBLIC_FIELDS;
 
 // =====================================================
 // CREATE INSTITUTION
@@ -106,12 +120,7 @@ export const createInstitution = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to create institution",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to create institution");
   }
 };
 
@@ -146,19 +155,19 @@ export const getAllInstitutions = async (
       filter.$or = [
         {
           name: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
         {
           code: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
         {
           shortName: {
-            $regex: search,
+            $regex: escapeRegex(search),
             $options: "i",
           },
         },
@@ -171,7 +180,7 @@ export const getAllInstitutions = async (
 
     if (district) {
       filter.district = {
-        $regex: district,
+        $regex: escapeRegex(district),
         $options: "i",
       };
     }
@@ -187,6 +196,7 @@ export const getAllInstitutions = async (
 
     const institutions =
       await Institution.find(filter)
+        .select(visibleFields(req.user))
         .sort({
           name: 1,
         });
@@ -202,12 +212,7 @@ export const getAllInstitutions = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to get institutions",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to get institutions");
   }
 };
 
@@ -224,7 +229,8 @@ export const getInstitutionById = async (
     const { id } = req.params;
 
     const institution =
-      await Institution.findById(id);
+      await Institution.findById(id)
+        .select(visibleFields(req.user));
 
     if (!institution) {
       return res.status(404).json({
@@ -244,12 +250,7 @@ export const getInstitutionById = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to get institution",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to get institution");
   }
 };
 
@@ -384,12 +385,7 @@ export const updateInstitution = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to update institution",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update institution");
   }
 };
 
@@ -440,12 +436,7 @@ export const deleteInstitution = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to delete institution",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete institution");
   }
 };
 
@@ -491,10 +482,6 @@ export const toggleInstitutionStatus =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to update institution status",
-      });
+      return sendError(res, error, "Failed to update institution status");
     }
   };

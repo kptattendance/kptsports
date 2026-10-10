@@ -491,13 +491,18 @@ export default function StudentApplyPage() {
 
     if (!file) return;
 
+    // Same list as the backend upload filter
     if (
-      !file.type.startsWith(
-        "image/"
-      )
+      ![
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+      ].includes(file.type)
     ) {
       setError(
-        "Please select a valid image."
+        "Please select a JPG, PNG or WEBP photo."
       );
       return;
     }

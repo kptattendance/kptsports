@@ -8,5 +8,12 @@ export default function sitemap() {
       changeFrequency: "weekly",
       priority: 1,
     },
+
+    {
+      url: `${baseUrl}/events`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
   ];
 }

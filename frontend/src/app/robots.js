@@ -9,10 +9,11 @@ export default function robots() {
 
         disallow: [
           "/admin/",
-          "/dashboard/",
-          "/api/",
+          "/sports-officer/",
+          "/college/",
+          "/student/",
           "/auth/",
-          "/login/",
+          "/api/",
         ],
       },
     ],

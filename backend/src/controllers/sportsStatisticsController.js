@@ -2,6 +2,7 @@ import SportsApplication from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import Institution from "../models/Institution.js";
+import sendError from "../utils/sendError.js";
 
 export const getPublicSportsStatistics = async (req, res) => {
   try {
@@ -91,7 +92,12 @@ export const getPublicSportsStatistics = async (req, res) => {
         status: {
           $ne: "rejected",
         },
-      }).lean();
+      })
+        // Only what the counts need. No personal details.
+        .select(
+          "collegeCode branch semester gender participationCategory selectedEvents"
+        )
+        .lean();
 
     /*
     =====================================================
@@ -543,10 +549,6 @@ export const getPublicSportsStatistics = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Unable to load Sports Meet statistics.",
-    });
+    return sendError(res, error, "Unable to load Sports Meet statistics.");
   }
 };

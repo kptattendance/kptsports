@@ -1,5 +1,6 @@
 import Event from "../models/Event.js";
 import SportsMeet from "../models/SportsMeet.js";
+import sendError from "../utils/sendError.js";
 
 // =====================================================
 // CREATE EVENT
@@ -240,11 +241,7 @@ export const createEvent = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create event",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to create event");
   }
 };
 
@@ -332,11 +329,7 @@ export const getAllEvents = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get events",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to get events");
   }
 };
 
@@ -375,11 +368,7 @@ export const getEventById = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get event",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to get event");
   }
 };
 
@@ -648,11 +637,7 @@ export const updateEvent = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update event",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update event");
   }
 };
 
@@ -691,12 +676,7 @@ export const deleteEvent = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to delete event",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete event");
   }
 };
 
@@ -739,11 +719,6 @@ export const toggleApplicationStatus =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to update application status",
-        error: error.message,
-      });
+      return sendError(res, error, "Failed to update application status");
     }
   };

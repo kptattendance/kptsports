@@ -2,6 +2,7 @@ import SportsResult from "../models/SportsResult.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsApplication from "../models/SportsApplication.js";
+import sendError from "../utils/sendError.js";
 
 // ======================================================
 // GET ALL RESULTS
@@ -76,13 +77,7 @@ export const getAllResults = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to fetch results.",
-      error:
-        error.message,
-    });
+    return sendError(res, error, "Failed to fetch results.");
   }
 };
 
@@ -160,13 +155,7 @@ export const getResultsByEvent =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to fetch event results.",
-        error:
-          error.message,
-      });
+      return sendError(res, error, "Failed to fetch event results.");
     }
   };
 
@@ -465,13 +454,7 @@ export const saveResult =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to save result.",
-        error:
-          error.message,
-      });
+      return sendError(res, error, "Failed to save result.");
     }
   };
 
@@ -622,13 +605,7 @@ export const finalizeEventResults =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to finalize event results.",
-        error:
-          error.message,
-      });
+      return sendError(res, error, "Failed to finalize event results.");
     }
   };
 
@@ -684,13 +661,7 @@ export const getResultById =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to fetch result.",
-        error:
-          error.message,
-      });
+      return sendError(res, error, "Failed to fetch result.");
     }
   };
 
@@ -748,12 +719,6 @@ export const deleteResult =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to delete result.",
-        error:
-          error.message,
-      });
+      return sendError(res, error, "Failed to delete result.");
     }
   };

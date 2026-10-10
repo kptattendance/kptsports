@@ -5,6 +5,8 @@ import SportsApplication from "../models/SportsApplication.js";
 import SportsResult from "../models/SportsResult.js";
 import generateCertificateNumber from "../utils/generateCertificateNumber.js";
 import generateCertificatePdf from "../utils/generateCertificatePdf.js";
+import escapeRegex from "../utils/escapeRegex.js";
+import sendError from "../utils/sendError.js";
 
 // =====================================================
 // DOWNLOAD CERTIFICATE PDF
@@ -82,71 +84,6 @@ export const downloadCertificatePdf =
       }
 
       // =================================================
-      // PHOTO DEBUG
-      // =================================================
-
-      console.log("");
-      console.log(
-        "================================================"
-      );
-      console.log(
-        "CERTIFICATE PDF PHOTO DEBUG"
-      );
-      console.log(
-        "================================================"
-      );
-
-      console.log(
-        "Certificate ID:",
-        certificate._id
-      );
-
-      console.log(
-        "Certificate Number:",
-        certificate.certificateNumber
-      );
-
-      console.log(
-        "Certificate Application ID:",
-        certificate.application
-      );
-
-      console.log(
-        "Application ID:",
-        application._id
-      );
-
-      console.log(
-        "Student Name:",
-        application.name
-      );
-
-      console.log(
-        "Application Photo:",
-        application.photo
-      );
-
-      console.log(
-        "Application Photo URL:",
-        application.photo?.url
-      );
-
-      console.log(
-        "Application Photo Public ID:",
-        application.photo?.publicId
-      );
-
-      console.log(
-        "Certificate Photo:",
-        certificate.photo
-      );
-
-      console.log(
-        "================================================"
-      );
-      console.log("");
-
-      // =================================================
       // GENERATE PDF
       // =================================================
 
@@ -205,12 +142,7 @@ export const downloadCertificatePdf =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to generate certificate PDF",
-        error: error.message,
-      });
+      return sendError(res, error, "Failed to generate certificate PDF");
     }
   };
 
@@ -253,19 +185,19 @@ export const getAllCertificates =
         filter.$or = [
           {
             studentName: {
-              $regex: search,
+              $regex: escapeRegex(search),
               $options: "i",
             },
           },
           {
             registerNumber: {
-              $regex: search,
+              $regex: escapeRegex(search),
               $options: "i",
             },
           },
           {
             certificateNumber: {
-              $regex: search,
+              $regex: escapeRegex(search),
               $options: "i",
             },
           },
@@ -300,11 +232,7 @@ export const getAllCertificates =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to fetch certificates",
-      });
+      return sendError(res, error, "Failed to fetch certificates");
     }
   };
 
@@ -350,11 +278,7 @@ export const getCertificateById =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to fetch certificate",
-      });
+      return sendError(res, error, "Failed to fetch certificate");
     }
   };
 
@@ -441,80 +365,6 @@ export const generateCertificatesForEvent =
             "No participants found for this event.",
         });
       }
-
-      // =================================================
-      // PHOTO DEBUG
-      // =================================================
-
-      console.log("");
-      console.log(
-        "================================================"
-      );
-      console.log(
-        "CERTIFICATE GENERATION PHOTO CHECK"
-      );
-      console.log(
-        "================================================"
-      );
-
-      console.log(
-        "Event:",
-        event.name
-      );
-
-      console.log(
-        "Meet:",
-        meet.name
-      );
-
-      console.log(
-        "Total applications:",
-        applications.length
-      );
-
-      for (
-        const application of applications
-      ) {
-        console.log("");
-        console.log(
-          "----------------------------------------"
-        );
-
-        console.log(
-          "Application ID:",
-          application._id
-        );
-
-        console.log(
-          "Student:",
-          application.name
-        );
-
-        console.log(
-          "Register Number:",
-          application.registerNumber
-        );
-
-        console.log(
-          "Photo Object:",
-          application.photo
-        );
-
-        console.log(
-          "Photo URL:",
-          application.photo?.url
-        );
-
-        console.log(
-          "Photo Public ID:",
-          application.photo?.publicId
-        );
-      }
-
-      console.log(
-        "================================================"
-      );
-      console.log("");
 
       // =================================================
       // FIND WINNER APPLICATION IDS
@@ -607,20 +457,6 @@ export const generateCertificatesForEvent =
               "",
           };
 
-          console.log("");
-          console.log(
-            "CREATING WINNER CERTIFICATE"
-          );
-
-          console.log(
-            "Student:",
-            application.name
-          );
-
-          console.log(
-            "Photo:",
-            photoData
-          );
 
           // ---------------------------------------------
           // CREATE CERTIFICATE
@@ -727,20 +563,6 @@ export const generateCertificatesForEvent =
             "",
         };
 
-        console.log("");
-        console.log(
-          "CREATING PARTICIPATION CERTIFICATE"
-        );
-
-        console.log(
-          "Student:",
-          application.name
-        );
-
-        console.log(
-          "Photo:",
-          photoData
-        );
 
         // ---------------------------------------------
         // CREATE CERTIFICATE
@@ -805,12 +627,7 @@ export const generateCertificatesForEvent =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to generate certificates",
-        error: error.message,
-      });
+      return sendError(res, error, "Failed to generate certificates");
     }
   };
 
@@ -849,10 +666,6 @@ export const deleteCertificate =
         error
       );
 
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to delete certificate",
-      });
+      return sendError(res, error, "Failed to delete certificate");
     }
   };

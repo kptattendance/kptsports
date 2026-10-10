@@ -15,8 +15,13 @@ import authMiddleware from "../middleware/authMiddleware.js";
 import resolveUser from "../middleware/resolveUser.js";
 import roleMiddleware from "../middleware/roleMiddleware.js";
 import uploadMiddleware from "../middleware/uploadMiddleware.js";
+import sanitizeBody from "../middleware/sanitizeBody.js";
+import { uploadLimiter } from "../middleware/rateLimiters.js";
+import validateObjectId from "../middleware/validateObjectId.js";
 
 const router = express.Router();
+
+router.param("id", validateObjectId);
 
 // ======================================================
 // STUDENT - MY APPLICATION
@@ -39,7 +44,9 @@ router.post(
   "/",
   authMiddleware,
   resolveUser,
+  uploadLimiter,
   uploadMiddleware.single("photo"),
+  sanitizeBody,
   createApplication
 );
 
@@ -50,7 +57,9 @@ router.put(
   "/my",
   authMiddleware,
   resolveUser,
+  uploadLimiter,
   uploadMiddleware.single("photo"),
+  sanitizeBody,
   updateMyApplication
 );
 
@@ -110,7 +119,9 @@ router.put(
     "sports_officer",
     "college_coordinator"
   ),
+  uploadLimiter,
   uploadMiddleware.single("photo"),
+  sanitizeBody,
   updateApplication
 );
 

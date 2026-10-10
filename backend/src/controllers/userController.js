@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 import { clerkClient } from "@clerk/express";
+import escapeRegex from "../utils/escapeRegex.js";
+import sendError from "../utils/sendError.js";
 
 // =====================================================
 // ROLES
@@ -290,14 +292,7 @@ export const createUser = async (req, res) => {
     // OTHER ERROR
     // =================================================
 
-    return res.status(500).json({
-      success: false,
-
-      message:
-        "Failed to create user.",
-
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to create user.");
   }
 };
 
@@ -435,12 +430,7 @@ export const createMyUser = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to create application user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to create application user.");
   }
 };
 
@@ -485,12 +475,7 @@ export const getMyUser = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to fetch user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch user.");
   }
 };
 
@@ -532,10 +517,13 @@ export const getAllUsers = async (
     // SEARCH
     // =================================================
 
-    if (search.trim()) {
+    const searchText =
+      escapeRegex(search);
+
+    if (searchText) {
       const regex =
         new RegExp(
-          search.trim(),
+          searchText,
           "i"
         );
 
@@ -624,12 +612,7 @@ export const getAllUsers = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to fetch users.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch users.");
   }
 };
 
@@ -665,12 +648,7 @@ export const getUserById = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to fetch user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to fetch user.");
   }
 };
 
@@ -757,12 +735,7 @@ export const updateMyUser = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to update profile.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update profile.");
   }
 };
 
@@ -807,6 +780,50 @@ export const updateUser = async (
       password,
       isActive,
     } = req.body;
+
+    // =================================================
+    // PERMISSIONS
+    //
+    // Only an admin can change role, email, password
+    // or active status, or edit another admin.
+    // A Sports Officer can only correct name / phone
+    // of non-admin users.
+    // =================================================
+
+    if (req.user.role !== "admin") {
+      const changesProtectedField =
+        role !== undefined ||
+        email !== undefined ||
+        password !== undefined ||
+        isActive !== undefined;
+
+      if (
+        changesProtectedField ||
+        user.role === "admin"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Only an admin can make this change.",
+        });
+      }
+    }
+
+    // =================================================
+    // PREVENT SELF DEACTIVATION
+    // =================================================
+
+    if (
+      isActive === false &&
+      String(user._id) ===
+        String(req.user._id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You cannot change your own account status.",
+      });
+    }
 
     // =================================================
     // ROLE VALIDATION
@@ -1065,12 +1082,7 @@ export const updateUser = async (
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to update user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update user.");
   }
 };
 
@@ -1147,12 +1159,7 @@ export const updateUserRole = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to update user role.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to update user role.");
   }
 };
 
@@ -1253,12 +1260,7 @@ export const toggleUserStatus = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to change user status.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to change user status.");
   }
 };
 // =====================================================
@@ -1374,11 +1376,7 @@ export const deleteUser = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete user.");
   }
 };
 
@@ -1570,12 +1568,7 @@ export const deleteMultipleUsers = async (req, res) => {
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to delete selected users.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to delete selected users.");
   }
 };
 
@@ -1625,11 +1618,6 @@ export const restoreUser = async (
       error
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to restore user.",
-      error: error.message,
-    });
+    return sendError(res, error, "Failed to restore user.");
   }
 };

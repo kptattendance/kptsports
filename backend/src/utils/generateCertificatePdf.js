@@ -2,177 +2,50 @@ import PDFDocument from "pdfkit";
 
 // =====================================================
 // DOWNLOAD IMAGE FROM URL
+//
+// Only Cloudinary images are fetched. Cloudinary is
+// asked for JPEG, because PDFKit cannot embed WEBP/HEIC.
+// Returns null when the image is not available.
 // =====================================================
+
+const CLOUDINARY_HOST = "https://res.cloudinary.com/";
 
 const downloadImage = async (
   url,
   imageName = "image"
 ) => {
   try {
-    console.log("");
-    console.log(
-      "================================================"
-    );
-    console.log(
-      `START DOWNLOADING ${imageName}`
-    );
-    console.log(
-      "================================================"
-    );
-
-    console.log(
-      `${imageName} ORIGINAL URL:`,
-      url
-    );
-
-    if (!url) {
+    if (
+      !url ||
+      !url.startsWith(CLOUDINARY_HOST) ||
+      !url.includes("/upload/")
+    ) {
       console.error(
-        `${imageName}: URL IS EMPTY`
+        `${imageName}: missing or unsupported URL`
       );
 
       return null;
     }
 
-    let finalUrl = url;
-
-    // =================================================
-    // CLOUDINARY
-    // FORCE JPEG FORMAT
-    // =================================================
-
-    if (
-      finalUrl.includes(
-        "res.cloudinary.com"
-      ) &&
-      finalUrl.includes("/upload/")
-    ) {
-      finalUrl = finalUrl.replace(
-        "/upload/",
-        "/upload/f_jpg/"
-      );
-    }
-
-    console.log(
-      `${imageName} FINAL URL:`,
-      finalUrl
-    );
-
-    // =================================================
-    // FETCH
-    // =================================================
-
-    const response =
-      await fetch(finalUrl);
-
-    console.log(
-      `${imageName} HTTP STATUS:`,
-      response.status
-    );
-
-    console.log(
-      `${imageName} CONTENT TYPE:`,
-      response.headers.get(
-        "content-type"
-      )
+    const response = await fetch(
+      url.replace("/upload/", "/upload/f_jpg/")
     );
 
     if (!response.ok) {
       console.error(
-        `${imageName}: DOWNLOAD FAILED`
+        `${imageName}: download failed (${response.status})`
       );
 
       return null;
     }
 
-    // =================================================
-    // BUFFER
-    // =================================================
-
-    const arrayBuffer =
-      await response.arrayBuffer();
-
-    const buffer =
-      Buffer.from(arrayBuffer);
-
-    console.log(
-      `${imageName} BUFFER SIZE:`,
-      buffer.length,
-      "bytes"
+    return Buffer.from(
+      await response.arrayBuffer()
     );
-
-    // =================================================
-    // CHECK IMAGE FORMAT
-    // =================================================
-
-    const firstBytes =
-      buffer
-        .subarray(0, 20)
-        .toString("hex");
-
-    console.log(
-      `${imageName} FIRST BYTES:`,
-      firstBytes
-    );
-
-    // JPEG
-    if (
-      buffer[0] === 0xff &&
-      buffer[1] === 0xd8 &&
-      buffer[2] === 0xff
-    ) {
-      console.log(
-        `${imageName}: VALID JPEG`
-      );
-    }
-
-    // PNG
-    else if (
-      buffer[0] === 0x89 &&
-      buffer[1] === 0x50 &&
-      buffer[2] === 0x4e &&
-      buffer[3] === 0x47
-    ) {
-      console.log(
-        `${imageName}: VALID PNG`
-      );
-    }
-
-    // WEBP
-    else if (
-      buffer
-        .subarray(0, 4)
-        .toString() === "RIFF" &&
-      buffer
-        .subarray(8, 12)
-        .toString() === "WEBP"
-    ) {
-      console.log(
-        `${imageName}: WEBP DETECTED`
-      );
-    } else {
-      console.warn(
-        `${imageName}: UNKNOWN IMAGE FORMAT`
-      );
-    }
-
-    console.log(
-      `${imageName}: DOWNLOAD SUCCESS`
-    );
-
-    return buffer;
   } catch (error) {
     console.error(
-      `${imageName}: DOWNLOAD ERROR`
-    );
-
-    console.error(
-      "Message:",
+      `${imageName}: download error:`,
       error.message
-    );
-
-    console.error(
-      "Stack:",
-      error.stack
     );
 
     return null;
@@ -190,7 +63,7 @@ const createCloudinaryJpgUrl = (
     return "";
   }
 
-  return `https://res.cloudinary.com/dnreqxbdw/image/upload/f_jpg/${publicId}.jpg`;
+  return `${CLOUDINARY_HOST}${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/${publicId}.jpg`;
 };
 
 // =====================================================
@@ -206,8 +79,10 @@ const generateCertificatePdf = async ({
   // =====================================================
   // CLOUDINARY LOGOS
   // =====================================================
-const collegeWatermarkUrl =
-  "https://res.cloudinary.com/tszalf5h/image/upload/v1790564455/clgimg1.jpg";
+
+  const collegeWatermarkUrl =
+    "https://res.cloudinary.com/tszalf5h/image/upload/v1790564455/clgimg1.jpg";
+
   const logo3Url =
     "https://res.cloudinary.com/dnreqxbdw/image/upload/v1757932916/logo3_vptob4.jpg";
 
@@ -235,185 +110,71 @@ const collegeWatermarkUrl =
     "";
 
   // =====================================================
-  // PHOTO DEBUG
+  // DOWNLOAD HEADER LOGOS + COLLEGE WATERMARK
   // =====================================================
 
-  console.log("");
-  console.log(
-    "################################################"
-  );
-  console.log(
-    "             CERTIFICATE PHOTO DEBUG"
-  );
-  console.log(
-    "################################################"
-  );
+  const [
+    logo3Buffer,
+    logo4Buffer,
+    logo5Buffer,
+    collegeWatermarkBuffer,
+  ] = await Promise.all([
+    downloadImage(
+      logo3Url,
+      "LEFT COLLEGE LOGO"
+    ),
 
-  console.log(
-    "Certificate ID:",
-    certificate?._id
-  );
+    downloadImage(
+      logo4Url,
+      "RIGHT COLLEGE LOGO"
+    ),
 
-  console.log(
-    "Certificate Number:",
-    certificate?.certificateNumber
-  );
+    downloadImage(
+      logo5Url,
+      "KARNATAKA EMBLEM"
+    ),
 
-  console.log(
-    "Certificate Photo:",
-    certificate?.photo
-  );
-
-  console.log(
-    "Application ID:",
-    application?._id
-  );
-
-  console.log(
-    "Application Photo:",
-    application?.photo
-  );
-
-  console.log(
-    "FINAL PHOTO URL:",
-    studentPhotoUrl
-  );
-
-  console.log(
-    "FINAL PHOTO PUBLIC ID:",
-    studentPhotoPublicId
-  );
-
-  console.log(
-    "################################################"
-  );
-
-  // =====================================================
-  // DOWNLOAD HEADER LOGOS
-  // =====================================================
-
-// =====================================================
-// DOWNLOAD HEADER LOGOS + COLLEGE WATERMARK
-// =====================================================
-
-const [
-  logo3Buffer,
-  logo4Buffer,
-  logo5Buffer,
-  collegeWatermarkBuffer,
-] = await Promise.all([
-  downloadImage(
-    logo3Url,
-    "LEFT COLLEGE LOGO"
-  ),
-
-  downloadImage(
-    logo4Url,
-    "RIGHT COLLEGE LOGO"
-  ),
-
-  downloadImage(
-    logo5Url,
-    "KARNATAKA EMBLEM"
-  ),
-
-  downloadImage(
-    collegeWatermarkUrl,
-    "COLLEGE BUILDING WATERMARK"
-  ),
-]);
+    downloadImage(
+      collegeWatermarkUrl,
+      "COLLEGE BUILDING WATERMARK"
+    ),
+  ]);
 
   // =====================================================
   // DOWNLOAD STUDENT PHOTO
+  //
+  // ATTEMPT 1: stored photo URL
+  // ATTEMPT 2: URL rebuilt from the Cloudinary publicId
   // =====================================================
 
   let studentPhotoBuffer = null;
 
-  // =====================================================
-  // ATTEMPT 1
-  // PHOTO URL
-  // =====================================================
-
   if (studentPhotoUrl) {
-    console.log("");
-    console.log(
-      "Attempt 1: Downloading student photo using URL"
-    );
-
     studentPhotoBuffer =
       await downloadImage(
         studentPhotoUrl,
         "STUDENT PHOTO FROM URL"
       );
-  } else {
-    console.error(
-      "Student photo URL is EMPTY."
-    );
   }
-
-  // =====================================================
-  // ATTEMPT 2
-  // PUBLIC ID
-  // =====================================================
 
   if (
     !studentPhotoBuffer &&
     studentPhotoPublicId
   ) {
-    console.log("");
-    console.log(
-      "Attempt 2: Downloading student photo using publicId"
-    );
-
-    const fallbackPhotoUrl =
-      createCloudinaryJpgUrl(
-        studentPhotoPublicId
-      );
-
-    console.log(
-      "Fallback photo URL:",
-      fallbackPhotoUrl
-    );
-
     studentPhotoBuffer =
       await downloadImage(
-        fallbackPhotoUrl,
+        createCloudinaryJpgUrl(
+          studentPhotoPublicId
+        ),
         "STUDENT PHOTO FROM PUBLIC ID"
       );
   }
 
-  // =====================================================
-  // FINAL PHOTO STATUS
-  // =====================================================
-
-  console.log("");
-  console.log(
-    "================================================"
-  );
-
-  if (studentPhotoBuffer) {
-    console.log(
-      "SUCCESS: STUDENT PHOTO BUFFER AVAILABLE"
-    );
-
-    console.log(
-      "Student photo size:",
-      studentPhotoBuffer.length,
-      "bytes"
-    );
-  } else {
+  if (!studentPhotoBuffer) {
     console.error(
-      "ERROR: STUDENT PHOTO BUFFER IS NULL"
-    );
-
-    console.error(
-      "No usable student photo was downloaded."
+      `No usable student photo for certificate ${certificate?.certificateNumber}`
     );
   }
-
-  console.log(
-    "================================================"
-  );
 
   // =====================================================
   // CREATE PDF
@@ -507,9 +268,6 @@ doc
 
 if (collegeWatermarkBuffer) {
   try {
-    console.log(
-      "Adding college building watermark..."
-    );
 
     doc.save();
 
@@ -528,9 +286,6 @@ if (collegeWatermarkBuffer) {
 
     doc.restore();
 
-    console.log(
-      "SUCCESS: College building watermark inserted."
-    );
   } catch (error) {
     console.error(
       "COLLEGE WATERMARK PDF ERROR:",
@@ -1070,9 +825,6 @@ if (collegeWatermarkBuffer) {
               }
             );
 
-            console.log(
-              "SUCCESS: Student photo inserted into PDF."
-            );
           } catch (error) {
             console.error(
               "PDFKit PHOTO ERROR:",

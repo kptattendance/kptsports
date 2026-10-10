@@ -12,9 +12,12 @@ import {
 import authMiddleware from "../middleware/authMiddleware.js";
 import resolveUser from "../middleware/resolveUser.js";
 import roleMiddleware from "../middleware/roleMiddleware.js";
+import validateObjectId from "../middleware/validateObjectId.js";
 
-const router =
-  express.Router();
+const router = express.Router();
+
+router.param("id", validateObjectId);
+router.param("eventId", validateObjectId);
 
 
 // ======================================================

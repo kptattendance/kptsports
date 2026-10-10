@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import axios from "axios";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const ROLE_HOME = {
   admin: "/admin",
@@ -12,12 +14,16 @@ const ROLE_HOME = {
   student: "/student",
 };
 
+// NOTE:
+// This only decides what the browser shows.
+// The real protection is on the backend, which checks
+// the role again on every API request.
+
 export default function RoleProtected({
   children,
   allowedRoles = [],
 }) {
   const router = useRouter();
-  const pathname = usePathname();
 
   const {
     isLoaded,
@@ -27,6 +33,8 @@ export default function RoleProtected({
 
   const [checking, setChecking] = useState(true);
 
+  const allowedKey = allowedRoles.join(",");
+
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -34,24 +42,18 @@ export default function RoleProtected({
       try {
         // Not logged in
         if (!isSignedIn) {
-          router.replace("/sign-in");
+          router.replace("/");
           return;
         }
 
-        // Get Clerk token
         const token = await getToken();
 
         if (!token) {
-          router.replace("/unauthorized");
+          router.replace("/");
           return;
         }
 
-        // Backend URL
-        const API_URL =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "http://localhost:5000";
-
-        // Get current user directly from backend
+        // Get current user from backend
         const response = await axios.get(
           `${API_URL}/api/users/me`,
           {
@@ -61,71 +63,21 @@ export default function RoleProtected({
           }
         );
 
-        const user = response.data?.user;
+        const user = response.data?.data;
 
-        if (!user) {
-          router.replace("/unauthorized");
+        // /auth/check creates the account if needed and
+        // signs out deactivated users.
+        if (!user || user.isActive === false) {
+          router.replace("/auth/check");
           return;
         }
-
-        // Check active status if backend provides it
-        if (user.isActive === false) {
-          router.replace("/unauthorized");
-          return;
-        }
-
-        const role = user.role;
 
         // Role is not allowed for this section
-        if (!allowedRoles.includes(role)) {
-          const correctHome = ROLE_HOME[role];
-
-          if (correctHome) {
-            router.replace(correctHome);
-          } else {
-            router.replace("/unauthorized");
-          }
-
+        if (!allowedKey.split(",").includes(user.role)) {
+          router.replace(
+            ROLE_HOME[user.role] || "/auth/check"
+          );
           return;
-        }
-
-        // Special protection for club-specific pages
-        if (
-          (role === "club_incharge" ||
-            role === "club_officer") &&
-          pathname
-        ) {
-          const pathParts = pathname.split("/");
-
-          const urlRole = pathParts[1];
-          const urlClubCode = pathParts[2];
-
-          if (
-            (urlRole === "club-incharge" ||
-              urlRole === "club-officer") &&
-            urlClubCode
-          ) {
-            const userClubCode =
-              user.clubId?.code?.toLowerCase();
-
-            if (
-              !userClubCode ||
-              userClubCode !== urlClubCode.toLowerCase()
-            ) {
-              const correctPath =
-                role === "club_incharge"
-                  ? `/club-incharge/${userClubCode}`
-                  : `/club-officer/${userClubCode}`;
-
-              if (userClubCode) {
-                router.replace(correctPath);
-              } else {
-                router.replace("/unauthorized");
-              }
-
-              return;
-            }
-          }
         }
 
         // Access allowed
@@ -133,20 +85,15 @@ export default function RoleProtected({
       } catch (error) {
         console.error(
           "Role protection error:",
-          error?.response?.data || error.message
+          error?.response?.status || error.message
         );
 
-        if (error?.response?.status === 401) {
-          router.replace("/sign-in");
-          return;
-        }
-
-        router.replace("/unauthorized");
+        router.replace("/auth/check");
       }
     };
 
     checkAccess();
-  }, [isLoaded, isSignedIn, getToken, router, pathname]);
+  }, [isLoaded, isSignedIn, getToken, router, allowedKey]);
 
   if (!isLoaded || checking) {
     return (

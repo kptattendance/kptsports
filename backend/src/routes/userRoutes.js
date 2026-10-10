@@ -18,8 +18,11 @@ import {
 import requireAuth from "../middleware/authMiddleware.js";
 import resolveUser from "../middleware/resolveUser.js";
 import requireRole from "../middleware/roleMiddleware.js";
+import validateObjectId from "../middleware/validateObjectId.js";
 
 const router = express.Router();
+
+router.param("id", validateObjectId);
 
 // =====================================================
 // MY USER PROFILE
