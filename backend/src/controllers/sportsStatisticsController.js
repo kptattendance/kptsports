@@ -71,7 +71,6 @@ export const getPublicSportsStatistics = async (req, res) => {
 
     const events =
       await Event.find({
-        meet: meet._id,
         isActive: true,
       })
         .sort({

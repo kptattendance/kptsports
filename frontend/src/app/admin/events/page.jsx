@@ -140,7 +140,6 @@ const resultTypeOptions = [
 // =====================================================
 
 const defaultForm = {
-  meet: "",
   code: "",
   name: "",
   category: "athletics",
@@ -168,10 +167,8 @@ export default function AdminEventsPage() {
   // ===================================================
 
   const [events, setEvents] = useState([]);
-  const [meets, setMeets] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [meetLoading, setMeetLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
   const [error, setError] = useState("");
@@ -190,7 +187,6 @@ export default function AdminEventsPage() {
   // ===================================================
 
   const [search, setSearch] = useState("");
-  const [meetFilter, setMeetFilter] = useState("");
   const [genderFilter, setGenderFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [participationFilter, setParticipationFilter] =
@@ -211,52 +207,6 @@ export default function AdminEventsPage() {
   const [form, setForm] = useState(defaultForm);
 
   // ===================================================
-  // FETCH MEETS
-  // ===================================================
-
-  const fetchMeets = useCallback(async () => {
-    try {
-      setMeetLoading(true);
-
-      const token = await getToken();
-
-      if (!token) {
-        throw new Error(
-          "Authentication token not available."
-        );
-      }
-
-      const response = await axios.get(
-        `${API_URL}/api/sports-meets`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data =
-        response.data?.sportsMeets ||
-        response.data?.meets ||
-        response.data?.data ||
-        [];
-
-      setMeets(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Fetch meets error:", err);
-
-      setMeets([]);
-
-      setError(
-        err.response?.data?.message ||
-          "Failed to load sports meets."
-      );
-    } finally {
-      setMeetLoading(false);
-    }
-  }, [getToken]);
-
-  // ===================================================
   // FETCH EVENTS
   // ===================================================
 
@@ -274,10 +224,6 @@ export default function AdminEventsPage() {
       }
 
       const params = new URLSearchParams();
-
-      if (meetFilter) {
-        params.append("meet", meetFilter);
-      }
 
       if (genderFilter) {
         params.append("gender", genderFilter);
@@ -351,7 +297,6 @@ export default function AdminEventsPage() {
     }
   }, [
     getToken,
-    meetFilter,
     genderFilter,
     categoryFilter,
     participationFilter,
@@ -363,10 +308,6 @@ export default function AdminEventsPage() {
   // ===================================================
   // INITIAL LOAD
   // ===================================================
-
-  useEffect(() => {
-    fetchMeets();
-  }, [fetchMeets]);
 
   useEffect(() => {
     fetchEvents();
@@ -390,13 +331,9 @@ export default function AdminEventsPage() {
       const name =
         event.name?.toLowerCase() || "";
 
-      const meetName =
-        event.meet?.name?.toLowerCase() || "";
-
       return (
         code.includes(value) ||
-        name.includes(value) ||
-        meetName.includes(value)
+        name.includes(value)
       );
     });
   }, [events, search]);
@@ -445,10 +382,7 @@ export default function AdminEventsPage() {
   // ===================================================
 
   const resetForm = () => {
-    setForm({
-      ...defaultForm,
-      meet: meets[0]?._id || "",
-    });
+    setForm(defaultForm);
 
     setSelectedEvent(null);
     setIsEdit(false);
@@ -462,10 +396,7 @@ export default function AdminEventsPage() {
     setError("");
     setSuccess("");
 
-    setForm({
-      ...defaultForm,
-      meet: meets[0]?._id || "",
-    });
+    setForm(defaultForm);
 
     setSelectedEvent(null);
     setIsEdit(false);
@@ -484,11 +415,6 @@ export default function AdminEventsPage() {
     setIsEdit(true);
 
     setForm({
-      meet:
-        event.meet?._id ||
-        event.meet ||
-        "",
-
       code: event.code || "",
 
       name: event.name || "",
@@ -561,11 +487,6 @@ export default function AdminEventsPage() {
       // VALIDATION
       // -----------------------------------------------
 
-      if (!form.meet) {
-        setError("Please select a sports meet.");
-        return;
-      }
-
       if (!form.code.trim()) {
         setError("Event code is required.");
         return;
@@ -613,8 +534,6 @@ export default function AdminEventsPage() {
       }
 
       const payload = {
-        meet: form.meet,
-
         code: form.code
           .trim()
           .toUpperCase(),
@@ -708,11 +627,6 @@ export default function AdminEventsPage() {
       setError("");
       setSuccess("");
 
-      if (!form.meet) {
-        setError("Please select a sports meet.");
-        return;
-      }
-
       if (!form.code.trim()) {
         setError("Event code is required.");
         return;
@@ -743,8 +657,6 @@ export default function AdminEventsPage() {
       }
 
       const payload = {
-        meet: form.meet,
-
         code: form.code
           .trim()
           .toUpperCase(),
@@ -945,7 +857,6 @@ export default function AdminEventsPage() {
 
   const clearFilters = () => {
     setSearch("");
-    setMeetFilter("");
     setGenderFilter("");
     setCategoryFilter("");
     setParticipationFilter("");
@@ -1013,14 +924,13 @@ export default function AdminEventsPage() {
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Manage sports meet events, categories and applications.
+            One event list, used by every sports meet.
           </p>
         </div>
 
         <button
           type="button"
           onClick={openAddModal}
-          disabled={meetLoading}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Plus size={18} />
@@ -1055,7 +965,7 @@ export default function AdminEventsPage() {
             </h2>
 
             <p className="mt-0.5 text-xs text-slate-400">
-              Filter events by meet and event details.
+              Filter events by their details.
             </p>
           </div>
 
@@ -1086,28 +996,11 @@ export default function AdminEventsPage() {
               onChange={(e) =>
                 setSearch(e.target.value)
               }
-              placeholder="Search code, event or meet..."
+              placeholder="Search code or event..."
               className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
             />
 
           </div>
-
-          {/* MEET */}
-
-          <FilterSelect
-            value={meetFilter}
-            onChange={(e) =>
-              setMeetFilter(e.target.value)
-            }
-            placeholder="All Sports Meets"
-            options={meets.map((meet) => ({
-              value: meet._id,
-              label:
-                meet.shortName ||
-                meet.name ||
-                `Meet ${meet.year || ""}`,
-            }))}
-          />
 
           {/* GENDER */}
 
@@ -1205,10 +1098,7 @@ export default function AdminEventsPage() {
 
           <button
             type="button"
-            onClick={() => {
-              fetchMeets();
-              fetchEvents();
-            }}
+            onClick={fetchEvents}
             disabled={loading}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
           >
@@ -1269,10 +1159,6 @@ export default function AdminEventsPage() {
 
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Event
-                  </th>
-
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Meet
                   </th>
 
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1340,28 +1226,6 @@ export default function AdminEventsPage() {
                               {event.code}
                             </p>
                           </div>
-
-                        </div>
-
-                      </td>
-
-                      {/* MEET */}
-
-                      <td className="px-4 py-4">
-
-                        <div className="max-w-[190px]">
-
-                          <p className="text-sm font-medium text-slate-700">
-                            {event.meet?.shortName ||
-                              event.meet?.name ||
-                              "—"}
-                          </p>
-
-                          {event.meet?.year && (
-                            <p className="mt-0.5 text-xs text-slate-400">
-                              {event.meet.year}
-                            </p>
-                          )}
 
                         </div>
 
@@ -1560,7 +1424,7 @@ export default function AdminEventsPage() {
           description={
             isEdit
               ? "Update event information and settings."
-              : "Create a new event for a sports meet."
+              : "Create a new event. It is available in every sports meet."
           }
           form={form}
           handleFormChange={
@@ -1574,7 +1438,6 @@ export default function AdminEventsPage() {
           onClose={closeModal}
           loading={actionLoading}
           isEdit={isEdit}
-          meets={meets}
         />
       )}
 
@@ -1675,7 +1538,6 @@ function EventModal({
   onClose,
   loading,
   isEdit,
-  meets,
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
@@ -1733,40 +1595,6 @@ function EventModal({
             <SectionTitle title="Basic Details" />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-              {/* MEET */}
-
-              <FormField
-                label="Sports Meet"
-                required
-              >
-                <select
-                  name="meet"
-                  value={form.meet}
-                  onChange={
-                    handleFormChange
-                  }
-                  disabled={loading}
-                  className="input-style"
-                >
-
-                  <option value="">
-                    Select sports meet
-                  </option>
-
-                  {meets.map((meet) => (
-                    <option
-                      key={meet._id}
-                      value={meet._id}
-                    >
-                      {meet.shortName ||
-                        meet.name ||
-                        `Meet ${meet.year || ""}`}
-                    </option>
-                  ))}
-
-                </select>
-              </FormField>
 
               {/* CODE */}
 

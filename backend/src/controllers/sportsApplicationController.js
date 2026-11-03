@@ -14,7 +14,6 @@ import {
 
 const validateEvents = async ({
   eventIds,
-  meetId,
   gender,
   participationCategory,
 }) => {
@@ -36,7 +35,6 @@ const validateEvents = async ({
 
   const events = await Event.find({
     _id: { $in: uniqueEventIds },
-    meet: meetId,
     isActive: true,
     applicationOpen: true,
   });
@@ -231,7 +229,6 @@ export const createApplication = async (req, res) => {
 
     const eventValidation = await validateEvents({
       eventIds: parsedEventIds,
-      meetId,
       gender,
       participationCategory,
     });
@@ -669,7 +666,6 @@ export const updateMyApplication = async (
 
     const eventValidation = await validateEvents({
       eventIds: parsedEventIds,
-      meetId: application.meet,
       gender: gender || application.gender,
       participationCategory:
         participationCategory ||
@@ -845,7 +841,6 @@ export const updateApplication = async (
       const eventValidation =
         await validateEvents({
           eventIds: parsedEventIds,
-          meetId: application.meet,
           gender:
             gender || application.gender,
           participationCategory:

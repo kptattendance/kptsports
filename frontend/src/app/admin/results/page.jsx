@@ -248,7 +248,7 @@ export default function AdminResultsPage() {
     };
 
   // =====================================================
-  // EVENTS FOR SELECTED MEET
+  // EVENTS (shared by every meet)
   // =====================================================
 
   const meetEvents =
@@ -258,14 +258,7 @@ export default function AdminResultsPage() {
         return [];
       }
 
-      return events.filter(
-        (event) =>
-          String(
-            event.meet?._id ||
-              event.meet
-          ) ===
-          String(meetId)
-      );
+      return events;
 
     }, [
       events,

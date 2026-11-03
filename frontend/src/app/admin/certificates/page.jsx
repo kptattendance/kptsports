@@ -182,7 +182,7 @@ const downloadCertificate = async (
   }
 };
   // =====================================================
-  // FILTER EVENTS BY MEET
+  // EVENTS (shared by every meet)
   // =====================================================
 
   const meetEvents = useMemo(() => {
@@ -190,17 +190,7 @@ const downloadCertificate = async (
       return [];
     }
 
-    return events
-      .filter((event) => {
-        const eventMeet =
-          event.meet?._id ||
-          event.meet;
-
-        return (
-          String(eventMeet) ===
-          String(selectedMeet)
-        );
-      })
+    return [...events]
       .sort(
         (a, b) =>
           Number(a.displayOrder || 0) -
@@ -345,7 +335,7 @@ const downloadCertificate = async (
 
       const response = await axios.post(
         `${API_URL}/api/certificates/event/${selectedEvent}/generate`,
-        {},
+        { meetId: selectedMeet },
         {
           headers,
         }

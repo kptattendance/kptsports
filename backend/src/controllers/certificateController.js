@@ -292,6 +292,17 @@ export const generateCertificatesForEvent =
       const { eventId } =
         req.params;
 
+      const meetId =
+        req.body?.meetId;
+
+      if (!meetId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "meetId is required.",
+        });
+      }
+
       // =================================================
       // GET EVENT
       // =================================================
@@ -315,7 +326,7 @@ export const generateCertificatesForEvent =
 
       const meet =
         await SportsMeet.findById(
-          event.meet
+          meetId
         );
 
       if (!meet) {

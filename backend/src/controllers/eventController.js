@@ -1,5 +1,4 @@
 import Event from "../models/Event.js";
-import SportsMeet from "../models/SportsMeet.js";
 import sendError from "../utils/sendError.js";
 
 // =====================================================
@@ -13,7 +12,6 @@ export const createEvent = async (
 ) => {
   try {
     const {
-      meet,
       code,
       name,
       category,
@@ -34,7 +32,6 @@ export const createEvent = async (
     // -------------------------------------------------
 
     if (
-      !meet ||
       !code ||
       !name ||
       !category ||
@@ -44,21 +41,7 @@ export const createEvent = async (
       return res.status(400).json({
         success: false,
         message:
-          "Meet, code, name, category, gender and participation category are required",
-      });
-    }
-
-    // -------------------------------------------------
-    // CHECK MEET
-    // -------------------------------------------------
-
-    const meetData =
-      await SportsMeet.findById(meet);
-
-    if (!meetData) {
-      return res.status(404).json({
-        success: false,
-        message: "Sports meet not found",
+          "Code, name, category, gender and participation category are required",
       });
     }
 
@@ -140,7 +123,6 @@ export const createEvent = async (
 
     const existingEvent =
       await Event.findOne({
-        meet,
         code: code.trim().toUpperCase(),
         gender,
         participationCategory,
@@ -150,7 +132,7 @@ export const createEvent = async (
       return res.status(409).json({
         success: false,
         message:
-          "This event already exists for the selected meet",
+          "This event already exists",
       });
     }
 
@@ -160,8 +142,6 @@ export const createEvent = async (
 
     const event =
       await Event.create({
-        meet,
-
         code: code
           .trim()
           .toUpperCase(),
@@ -212,19 +192,11 @@ export const createEvent = async (
             : 0,
       });
 
-    const populatedEvent =
-      await Event.findById(
-        event._id
-      ).populate(
-        "meet",
-        "name shortName year startDate endDate venue status"
-      );
-
     return res.status(201).json({
       success: true,
       message:
         "Event created successfully",
-      event: populatedEvent,
+      event,
     });
   } catch (error) {
     console.error(
@@ -237,7 +209,7 @@ export const createEvent = async (
       return res.status(409).json({
         success: false,
         message:
-          "An event with the same code, gender and participation category already exists for this meet",
+          "An event with the same code, gender and participation category already exists",
       });
     }
 
@@ -250,7 +222,6 @@ export const createEvent = async (
 // GET /api/events
 //
 // Query:
-// ?meet=ID
 // ?gender=male
 // ?category=athletics
 // ?participationCategory=regular
@@ -265,7 +236,6 @@ export const getAllEvents = async (
 ) => {
   try {
     const {
-      meet,
       gender,
       category,
       participationCategory,
@@ -275,10 +245,6 @@ export const getAllEvents = async (
     } = req.query;
 
     const filter = {};
-
-    if (meet) {
-      filter.meet = meet;
-    }
 
     if (gender) {
       filter.gender = gender;
@@ -309,10 +275,6 @@ export const getAllEvents = async (
 
     const events =
       await Event.find(filter)
-        .populate(
-          "meet",
-          "name shortName year startDate endDate venue status"
-        )
         .sort({
           displayOrder: 1,
           name: 1,
@@ -346,10 +308,7 @@ export const getEventById = async (
     const { id } = req.params;
 
     const event =
-      await Event.findById(id).populate(
-        "meet",
-        "name shortName year startDate endDate venue status"
-      );
+      await Event.findById(id);
 
     if (!event) {
       return res.status(404).json({
@@ -395,7 +354,6 @@ export const updateEvent = async (
     }
 
     const {
-      meet,
       code,
       name,
       category,
@@ -410,25 +368,6 @@ export const updateEvent = async (
       isActive,
       displayOrder,
     } = req.body;
-
-    // -------------------------------------------------
-    // MEET
-    // -------------------------------------------------
-
-    if (meet !== undefined) {
-      const meetData =
-        await SportsMeet.findById(meet);
-
-      if (!meetData) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Sports meet not found",
-        });
-      }
-
-      event.meet = meet;
-    }
 
     // -------------------------------------------------
     // BASIC DETAILS
@@ -609,19 +548,11 @@ export const updateEvent = async (
 
     await event.save();
 
-    const updatedEvent =
-      await Event.findById(
-        event._id
-      ).populate(
-        "meet",
-        "name shortName year startDate endDate venue status"
-      );
-
     return res.status(200).json({
       success: true,
       message:
         "Event updated successfully",
-      event: updatedEvent,
+      event,
     });
   } catch (error) {
     console.error(
@@ -633,7 +564,7 @@ export const updateEvent = async (
       return res.status(409).json({
         success: false,
         message:
-          "Another event with the same code, gender and participation category already exists for this meet",
+          "Another event with the same code, gender and participation category already exists",
       });
     }
 

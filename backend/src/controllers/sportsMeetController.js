@@ -1,6 +1,6 @@
-import Event from "../models/Event.js";
 import SportsApplication from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
+import SportsResult from "../models/SportsResult.js";
 import escapeRegex from "../utils/escapeRegex.js";
 import sendError from "../utils/sendError.js";
 
@@ -394,18 +394,17 @@ export const deleteSportsMeet = async (req, res) => {
       });
     }
 
-    // Deleting a meet that still has events or applications
-    // leaves them pointing to a meet that no longer exists,
-    // and they disappear from every dropdown.
-    const [eventCount, applicationCount] = await Promise.all([
-      Event.countDocuments({ meet: id }),
+    // Deleting a meet that still has applications or results
+    // would leave them pointing to a meet that no longer exists.
+    const [applicationCount, resultCount] = await Promise.all([
       SportsApplication.countDocuments({ meet: id }),
+      SportsResult.countDocuments({ meet: id }),
     ]);
 
-    if (eventCount > 0 || applicationCount > 0) {
+    if (applicationCount > 0 || resultCount > 0) {
       return res.status(400).json({
         success: false,
-        message: `This sports meet has ${eventCount} event(s) and ${applicationCount} application(s). Move or delete them first, or deactivate the meet instead.`,
+        message: `This sports meet has ${applicationCount} application(s) and ${resultCount} result(s). Delete them first, or deactivate the meet instead.`,
       });
     }
 

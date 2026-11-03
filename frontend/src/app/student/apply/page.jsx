@@ -309,7 +309,7 @@ export default function StudentApplyPage() {
 
         const eventResponse =
           await axios.get(
-            `${API_URL}/api/events?meet=${activeMeet._id}`,
+            `${API_URL}/api/events`,
             config
           );
 

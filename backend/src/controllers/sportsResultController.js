@@ -249,16 +249,15 @@ export const saveResult =
       // --------------------------------------------------
 
       const event =
-        await Event.findOne({
-          _id: eventId,
-          meet: meetId,
-        });
+        await Event.findById(
+          eventId
+        );
 
       if (!event) {
         return res.status(404).json({
           success: false,
           message:
-            "Event not found for this sports meet.",
+            "Event not found.",
         });
       }
 
@@ -493,10 +492,9 @@ export const finalizeEventResults =
       // --------------------------------------------------
 
       const event =
-        await Event.findOne({
-          _id: eventId,
-          meet: meetId,
-        });
+        await Event.findById(
+          eventId
+        );
 
       if (!event) {
         return res.status(404).json({

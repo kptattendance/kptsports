@@ -2,13 +2,8 @@ import mongoose from "mongoose";
 
 const eventSchema = new mongoose.Schema(
   {
-    meet: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "SportsMeet",
-      required: true,
-      index: true,
-    },
-
+    // Events are a shared master list used by every
+    // sports meet, so they are not tied to one meet.
     code: {
       type: String,
       required: true,
@@ -104,7 +99,6 @@ participationCategory: {
 
 eventSchema.index(
   {
-    meet: 1,
     code: 1,
     gender: 1,
     participationCategory: 1,
