@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* SweetAlert: keep line breaks written in messages */
+.swal2-html-container {
+  white-space: pre-line;
+}

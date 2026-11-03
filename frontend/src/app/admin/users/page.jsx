@@ -22,6 +22,10 @@ import {
   useEffect,
   useState,
 } from "react";
+import {
+  confirmAction,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -66,6 +70,14 @@ export default function AdminUsersPage() {
 
   const [success, setSuccess] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+    success: success,
+    setSuccess: setSuccess,
+  });
 
   // ===================================================
   // FILTERS
@@ -628,7 +640,7 @@ const clearSelection = () => {
       : "activate";
 
     const confirmed =
-      window.confirm(
+      await confirmAction(
         `Are you sure you want to ${action} ${user.name}?`
       );
 
@@ -691,7 +703,7 @@ const clearSelection = () => {
 // ===================================================
 
 const handleDeleteUser = async (user) => {
-  const confirmed = window.confirm(
+  const confirmed = await confirmAction(
     `Are you sure you want to permanently delete ${user.name}?\n\nThis will delete the user from both Clerk and MongoDB. This action cannot be undone.`
   );
 
@@ -763,7 +775,7 @@ const handleDeleteSelected = async () => {
       selectedUserIds.includes(user._id)
   );
 
-  const confirmed = window.confirm(
+  const confirmed = await confirmAction(
     `Are you sure you want to permanently delete ${selectedUsers.length} selected user(s)?\n\nAll selected users will be deleted from both Clerk and MongoDB.\n\nThis action cannot be undone.`
   );
 
@@ -962,45 +974,11 @@ const handleDeleteSelected = async () => {
       {/* SUCCESS */}
       {/* ================================================= */}
 
-      {success && (
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          <Check size={18} />
-
-          <span>{success}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSuccess("")
-            }
-            className="ml-auto rounded-lg p-1 hover:bg-green-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
 
       {/* ================================================= */}
       {/* ERROR */}
       {/* ================================================= */}
 
-      {error && (
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle size={18} />
-
-          <span>{error}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setError("")
-            }
-            className="ml-auto rounded-lg p-1 hover:bg-red-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
 
       {/* ================================================= */}
       {/* FILTER CARD */}

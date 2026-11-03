@@ -14,6 +14,12 @@ import {
   MapPin,
   Power,
 } from "lucide-react";
+import {
+  confirmAction,
+  showError,
+  showSuccess,
+  showWarning,
+} from "@/app/lib/alerts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -72,7 +78,7 @@ export default function MeetsPage() {
     } catch (error) {
       console.error("Error fetching sports meets:", error);
 
-      alert(
+      showError(
         error?.response?.data?.message ||
           "Failed to load sports meets."
       );
@@ -172,22 +178,22 @@ export default function MeetsPage() {
     e.preventDefault();
 
     if (!form.name.trim()) {
-      alert("Enter the meet name.");
+      showWarning("Enter the meet name.");
       return;
     }
 
     if (!form.year) {
-      alert("Enter the year.");
+      showWarning("Enter the year.");
       return;
     }
 
     if (!form.startDate || !form.endDate) {
-      alert("Select the meet start and end dates.");
+      showWarning("Select the meet start and end dates.");
       return;
     }
 
     if (new Date(form.endDate) < new Date(form.startDate)) {
-      alert("End date cannot be before start date.");
+      showWarning("End date cannot be before start date.");
       return;
     }
 
@@ -195,7 +201,7 @@ export default function MeetsPage() {
       !form.applicationStartDate ||
       !form.applicationEndDate
     ) {
-      alert("Select the application period.");
+      showWarning("Select the application period.");
       return;
     }
 
@@ -203,14 +209,14 @@ export default function MeetsPage() {
       new Date(form.applicationEndDate) <
       new Date(form.applicationStartDate)
     ) {
-      alert(
+      showWarning(
         "Application end date cannot be before application start date."
       );
       return;
     }
 
     if (!form.venue.trim()) {
-      alert("Enter the venue.");
+      showWarning("Enter the venue.");
       return;
     }
 
@@ -259,7 +265,7 @@ export default function MeetsPage() {
       closeModal();
       await fetchMeets();
 
-      alert(
+      showSuccess(
         editingMeet
           ? "Sports meet updated successfully."
           : "Sports meet created successfully."
@@ -267,7 +273,7 @@ export default function MeetsPage() {
     } catch (error) {
       console.error("Error saving sports meet:", error);
 
-      alert(
+      showError(
         error?.response?.data?.message ||
           "Failed to save sports meet."
       );
@@ -281,7 +287,7 @@ export default function MeetsPage() {
   // =========================================================
 
   const handleDelete = async (meet) => {
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Delete "${meet.name}"?\n\nThis should only be done if the meet has no related events or registrations.`
     );
 
@@ -305,7 +311,7 @@ export default function MeetsPage() {
     } catch (error) {
       console.error("Error deleting meet:", error);
 
-      alert(
+      showError(
         error?.response?.data?.message ||
           "Failed to delete sports meet."
       );
@@ -338,7 +344,7 @@ export default function MeetsPage() {
           : 0
       ];
 
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Change "${meet.name}" status from "${formatStatus(
         meet.status
       )}" to "${formatStatus(nextStatus)}"?`
@@ -370,7 +376,7 @@ export default function MeetsPage() {
         error
       );
 
-      alert(
+      showError(
         error?.response?.data?.message ||
           "Failed to change meet status."
       );

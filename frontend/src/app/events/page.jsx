@@ -14,6 +14,9 @@ import {
   RotateCcw,
   Users,
 } from "lucide-react";
+import {
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -28,6 +31,12 @@ export default function EventsPage() {
 
   const [error, setError] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+  });
 
   // =====================================================
   // FILTERS
@@ -601,19 +610,6 @@ export default function EventsPage() {
           ERROR
       ================================================= */}
 
-      {error && (
-
-        <section className="max-w-7xl mx-auto px-6 pb-6">
-
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-
-            {error}
-
-          </div>
-
-        </section>
-
-      )}
 
       {/* =================================================
           EVENTS TABLE

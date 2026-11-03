@@ -16,6 +16,9 @@ import {
   MapPin,
   RotateCcw,
 } from "lucide-react";
+import {
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -26,6 +29,12 @@ export default function HomePage() {
 
   const [error, setError] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+  });
 
   const [data, setData] =
     useState(null);
@@ -1647,15 +1656,6 @@ export default function HomePage() {
           ERROR
       ================================================= */}
 
-      {error && (
-        <section className="max-w-7xl mx-auto px-6 py-8">
-
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-            {error}
-          </div>
-
-        </section>
-      )}
 
 
       {/* =================================================

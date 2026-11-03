@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
+import {
+  confirmAction,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 
 export default function AdminCertificatesPage() {
@@ -27,6 +31,14 @@ export default function AdminCertificatesPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+    success: success,
+    setSuccess: setSuccess,
+  });
 
 
   const { getToken } = useAuth();
@@ -312,7 +324,7 @@ const downloadCertificate = async (
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Generate certificates for "${event.name}"?`
     );
 
@@ -366,7 +378,7 @@ const downloadCertificate = async (
   const deleteCertificate = async (
     certificateId
   ) => {
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       "Are you sure you want to delete this certificate?"
     );
 
@@ -478,17 +490,7 @@ const downloadCertificate = async (
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {/* MESSAGES */}
 
-        {error && (
-          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
 
-        {success && (
-          <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {success}
-          </div>
-        )}
 
         {/* FILTER CARD */}
 

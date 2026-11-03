@@ -16,6 +16,9 @@ import {
   RefreshCw,
   ChevronDown,
 } from "lucide-react";
+import {
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -28,6 +31,12 @@ export default function StudentPage() {
   const [meet, setMeet] = useState(null);
   const [application, setApplication] = useState(null);
   const [error, setError] = useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+  });
   const [profileOpen, setProfileOpen] = useState(false);
 
   const profileRef = useRef(null);
@@ -228,15 +237,6 @@ export default function StudentPage() {
 
         {/* ERROR */}
 
-        {error && (
-          <div className="mt-5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 flex gap-2">
-            <AlertCircle size={18} />
-
-            <span className="text-sm">
-              {error}
-            </span>
-          </div>
-        )}
 
         {!meet ? (
           <div className="max-w-2xl mx-auto py-10 sm:py-16">

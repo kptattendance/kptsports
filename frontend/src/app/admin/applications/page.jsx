@@ -15,6 +15,11 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
+import {
+  showError,
+  showWarning,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -35,6 +40,12 @@ export default function AdminApplicationsPage() {
 
   const [error, setError] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+  });
 
   const [selectedApplication, setSelectedApplication] =
     useState(null);
@@ -788,7 +799,7 @@ export default function AdminApplicationsPage() {
           err
         );
 
-        alert(
+        showError(
           err.response?.data?.message ||
             "Unable to load application."
         );
@@ -814,7 +825,7 @@ export default function AdminApplicationsPage() {
         filteredApplications.length ===
         0
       ) {
-        alert(
+        showWarning(
           "No applications to download."
         );
         return;
@@ -1478,13 +1489,6 @@ export default function AdminApplicationsPage() {
             ERROR
         ================================================= */}
 
-        {error && (
-
-          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-
-        )}
 
         {/* =================================================
             TABLE

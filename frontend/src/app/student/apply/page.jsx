@@ -26,6 +26,9 @@ import {
   ChevronDown,
   LogOut,
 } from "lucide-react";
+import {
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -86,6 +89,12 @@ export default function StudentApplyPage() {
 
   const [error, setError] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+  });
 
   const [profileOpen, setProfileOpen] =
     useState(false);
@@ -961,11 +970,6 @@ export default function StudentApplyPage() {
 
         {/* ERROR */}
 
-        {error && (
-          <div className="mt-5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-            {error}
-          </div>
-        )}
 
         <form
           onSubmit={handleSubmit}

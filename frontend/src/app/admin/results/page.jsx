@@ -13,6 +13,10 @@ import {
   Trophy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  confirmAction,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -77,6 +81,14 @@ export default function AdminResultsPage() {
 
   const [message, setMessage] =
     useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+    success: message,
+    setSuccess: setMessage,
+  });
 
   // =====================================================
   // RESULT FORM
@@ -910,7 +922,7 @@ const eligibleParticipants =
       }
 
       const confirmed =
-        window.confirm(
+        await confirmAction(
           "Finalize this event result? Finalized results cannot be changed."
         );
 
@@ -1227,27 +1239,7 @@ const eligibleParticipants =
             MESSAGES
         ================================================= */}
 
-        {error && (
 
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-
-        )}
-
-        {message && (
-
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
-
-            <Check
-              size={16}
-            />
-
-            {message}
-
-          </div>
-
-        )}
 
         {/* =================================================
             EVENT INFORMATION

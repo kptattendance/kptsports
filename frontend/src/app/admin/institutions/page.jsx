@@ -22,6 +22,10 @@ import {
 import { useAuth } from "@clerk/nextjs";
 import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  confirmAction,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -43,6 +47,14 @@ export default function AdminInstitutionsPage() {
   const [error, setError] = useState("");
 
   const [success, setSuccess] = useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+    success: success,
+    setSuccess: setSuccess,
+  });
 
   // ===================================================
   // FILTERS
@@ -488,7 +500,7 @@ setInstitutions(sortedInstitutions);
       ? "deactivate"
       : "activate";
 
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Are you sure you want to ${action} ${institution.name}?`
     );
 
@@ -550,7 +562,7 @@ setInstitutions(sortedInstitutions);
   const handleDelete = async (
     institution
   ) => {
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Delete "${institution.name}"?\n\nThis action cannot be undone.`
     );
 
@@ -686,49 +698,11 @@ setInstitutions(sortedInstitutions);
       {/* SUCCESS */}
       {/* ================================================= */}
 
-      {success && (
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-
-          <Check size={18} />
-
-          <span>{success}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setSuccess("")
-            }
-            className="ml-auto rounded-lg p-1 hover:bg-green-100"
-          >
-            <X size={16} />
-          </button>
-
-        </div>
-      )}
 
       {/* ================================================= */}
       {/* ERROR */}
       {/* ================================================= */}
 
-      {error && (
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-
-          <AlertCircle size={18} />
-
-          <span>{error}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setError("")
-            }
-            className="ml-auto rounded-lg p-1 hover:bg-red-100"
-          >
-            <X size={16} />
-          </button>
-
-        </div>
-      )}
 
    
       {/* ================================================= */}

@@ -25,6 +25,10 @@ import {
   useMemo,
   useState,
 } from "react";
+import {
+  confirmAction,
+  useAlertMessages,
+} from "@/app/lib/alerts";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -172,6 +176,14 @@ export default function AdminEventsPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Show error / success messages as SweetAlert popups
+  useAlertMessages({
+    error: error,
+    setError: setError,
+    success: success,
+    setSuccess: setSuccess,
+  });
 
   // ===================================================
   // FILTERS
@@ -817,7 +829,7 @@ export default function AdminEventsPage() {
   // ===================================================
 
   const handleDeleteEvent = async (event) => {
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Are you sure you want to delete "${event.name}"?`
     );
 
@@ -876,7 +888,7 @@ export default function AdminEventsPage() {
       ? "close"
       : "open";
 
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `Are you sure you want to ${action} applications for "${event.name}"?`
     );
 
@@ -1021,40 +1033,11 @@ export default function AdminEventsPage() {
       {/* SUCCESS */}
       {/* ================================================= */}
 
-      {success && (
-        <div className="mb-5 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          <Check size={18} />
-          <span>{success}</span>
-
-          <button
-            type="button"
-            onClick={() => setSuccess("")}
-            className="ml-auto text-green-500 hover:text-green-700"
-          >
-            <X size={17} />
-          </button>
-        </div>
-      )}
 
       {/* ================================================= */}
       {/* ERROR */}
       {/* ================================================= */}
 
-      {error && (
-        <div className="mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle size={18} />
-
-          <span>{error}</span>
-
-          <button
-            type="button"
-            onClick={() => setError("")}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            <X size={17} />
-          </button>
-        </div>
-      )}
 
   
 
