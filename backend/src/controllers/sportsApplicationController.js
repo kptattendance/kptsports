@@ -4,6 +4,7 @@ import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsResult from "../models/SportsResult.js";
 import Certificate from "../models/Certificate.js";
+import Attendance from "../models/Attendance.js";
 import escapeRegex from "../utils/escapeRegex.js";
 import sendError from "../utils/sendError.js";
 import {
@@ -1112,6 +1113,9 @@ const deleteApplicationsByIds = async (ids) => {
       SportsResult.deleteMany({
         meet: { $nin: existingMeetIds },
         participants: { $in: deletedIds },
+      }),
+      Attendance.deleteMany({
+        application: { $in: deletedIds },
       }),
     ]);
 

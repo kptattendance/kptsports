@@ -22,11 +22,17 @@ const adminOnly = [
   roleMiddleware("admin"),
 ];
 
-// Office staff (sports officers) enter results too
+// Everyone who works on results: admin, sports officers,
+// sports coordinators and office staff
 const resultStaff = [
   authMiddleware,
   resolveUser,
-  roleMiddleware("admin", "sports_officer"),
+  roleMiddleware(
+    "admin",
+    "sports_officer",
+    "sports_coordinator",
+    "office_staff"
+  ),
 ];
 
 // ======================================================

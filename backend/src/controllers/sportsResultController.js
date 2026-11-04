@@ -3,6 +3,7 @@ import SportsResult from "../models/SportsResult.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsApplication from "../models/SportsApplication.js";
+import Attendance from "../models/Attendance.js";
 import sendError from "../utils/sendError.js";
 import { syncWinnerCertificates } from "../utils/syncCertificates.js";
 
@@ -429,6 +430,22 @@ export const saveEventResults = async (req, res) => {
           upsert: true,
           runValidators: true,
         }
+      );
+    }
+
+    // A winner was obviously there: if attendance has been
+    // taken for this event, mark the winners present.
+    if (
+      allIds.length > 0 &&
+      (await Attendance.exists({ meet: meet._id, event: event._id }))
+    ) {
+      await Attendance.updateMany(
+        {
+          meet: meet._id,
+          event: event._id,
+          application: { $in: allIds },
+        },
+        { $set: { present: true } }
       );
     }
 

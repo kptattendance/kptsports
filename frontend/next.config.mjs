@@ -45,6 +45,12 @@ const nextConfig = {
         destination: "/admin/results",
         permanent: true,
       },
+      // Sports officers now work inside the admin area
+      {
+        source: "/sports-officer",
+        destination: "/admin/applications",
+        permanent: false,
+      },
     ];
   },
 

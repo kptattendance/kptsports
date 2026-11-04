@@ -11,6 +11,7 @@ import sportsMeetRoutes from "./routes/sportsMeetRoutes.js";
 import sportsApplicationRoutes from "./routes/sportsApplicationRoutes.js";
 import sportsStatisticsRoutes from "./routes/sportsStatisticsRoutes.js";
 import sportsResultRoutes from "./routes/sportsResultRoutes.js";
+import attendanceRoutes from "./routes/attendanceRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 
@@ -134,6 +135,7 @@ app.use("/api/sports-applications", sportsApplicationRoutes);
 app.use("/api/sports-statistics", sportsStatisticsRoutes);
 
 app.use("/api/sports-results", sportsResultRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 app.use("/api/certificates", certificateRoutes);
 

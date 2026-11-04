@@ -9,6 +9,7 @@ import {
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ROLE_HOME } from "../../lib/roles";
 
 export default function AuthCheckPage() {
   const {
@@ -175,19 +176,12 @@ export default function AuthCheckPage() {
         switch (applicationUser.role) {
 
           case "admin":
-            router.replace("/admin");
-            break;
-
           case "sports_officer":
-            router.replace("/sports-officer");
-            break;
-
+          case "sports_coordinator":
+          case "office_staff":
           case "college_coordinator":
-            router.replace("/college");
-            break;
-
           case "student":
-            router.replace("/student");
+            router.replace(ROLE_HOME[applicationUser.role]);
             break;
 
           default:

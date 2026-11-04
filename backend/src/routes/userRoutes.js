@@ -67,7 +67,7 @@ router.get(
   "/",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   getAllUsers
 );
 
@@ -76,7 +76,7 @@ router.get(
   "/:id",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   getUserById
 );
 
@@ -85,7 +85,7 @@ router.put(
   "/:id",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   updateUser
 );
 

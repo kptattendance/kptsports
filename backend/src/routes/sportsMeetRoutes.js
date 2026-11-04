@@ -29,6 +29,8 @@ router.get(
   requireRole(
     "admin",
     "sports_officer",
+    "sports_coordinator",
+    "office_staff",
     "college_coordinator",
     "student"
   ),
@@ -45,6 +47,8 @@ router.get(
   requireRole(
     "admin",
     "sports_officer",
+    "sports_coordinator",
+    "office_staff",
     "college_coordinator",
     "student"
   ),
@@ -58,7 +62,7 @@ router.post(
   "/",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   createSportsMeet
 );
 
@@ -69,7 +73,7 @@ router.put(
   "/:id",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   updateSportsMeet
 );
 
@@ -91,7 +95,7 @@ router.patch(
   "/:id/status",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   updateSportsMeetStatus
 );
 
@@ -102,7 +106,7 @@ router.patch(
   "/:id/active",
   requireAuth,
   resolveUser,
-  requireRole("admin", "sports_officer"),
+  requireRole("admin"),
   toggleSportsMeetActive
 );
 

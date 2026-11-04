@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { ROLE_HOME } from "../lib/roles";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const ROLE_HOME = {
-  admin: "/admin",
-  sports_officer: "/sports-officer",
-  college_coordinator: "/college",
-  student: "/student",
-};
+// The logged-in application user, for pages inside RoleProtected
+const CurrentUserContext = createContext(null);
+
+export const useCurrentUser = () => useContext(CurrentUserContext);
 
 // NOTE:
 // This only decides what the browser shows.
@@ -32,6 +31,7 @@ export default function RoleProtected({
   } = useAuth();
 
   const [checking, setChecking] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const allowedKey = allowedRoles.join(",");
 
@@ -81,6 +81,7 @@ export default function RoleProtected({
         }
 
         // Access allowed
+        setCurrentUser(user);
         setChecking(false);
       } catch (error) {
         console.error(
@@ -108,5 +109,9 @@ export default function RoleProtected({
     );
   }
 
-  return children;
+  return (
+    <CurrentUserContext.Provider value={currentUser}>
+      {children}
+    </CurrentUserContext.Provider>
+  );
 }

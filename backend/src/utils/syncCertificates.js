@@ -1,3 +1,4 @@
+import Attendance from "../models/Attendance.js";
 import Certificate from "../models/Certificate.js";
 import SportsApplication from "../models/SportsApplication.js";
 import generateCertificateNumber from "./generateCertificateNumber.js";
@@ -126,7 +127,8 @@ export const syncWinnerCertificates = async ({
 // =====================================================
 // PARTICIPATION CERTIFICATES
 // Everyone registered for the event (not rejected)
-// who is not a winner.
+// who is not a winner. Once attendance has been taken
+// for the event, only students marked present.
 // =====================================================
 
 export const syncParticipationCertificates = async ({
@@ -142,7 +144,7 @@ export const syncParticipationCertificates = async ({
     )
   );
 
-  const [applications, existing] = await Promise.all([
+  const [applications, existing, attendance] = await Promise.all([
     SportsApplication.find({
       meet: meet._id,
       selectedEvents: event._id,
@@ -156,7 +158,24 @@ export const syncParticipationCertificates = async ({
     })
       .select("application")
       .lean(),
+
+    Attendance.find({
+      meet: meet._id,
+      event: event._id,
+    })
+      .select("application present")
+      .lean(),
   ]);
+
+  // null = attendance not taken, everyone counts
+  const presentIds =
+    attendance.length > 0
+      ? new Set(
+          attendance
+            .filter((record) => record.present)
+            .map((record) => String(record.application))
+        )
+      : null;
 
   const existingIds = new Set(
     existing.map((certificate) => String(certificate.application))
@@ -167,7 +186,8 @@ export const syncParticipationCertificates = async ({
       .filter(
         (application) =>
           !winnerIds.has(String(application._id)) &&
-          !existingIds.has(String(application._id))
+          !existingIds.has(String(application._id)) &&
+          (!presentIds || presentIds.has(String(application._id)))
       )
       .map((application) => ({
         meet,

@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { ROLE_HOME } from "../lib/roles";
 
 export default function Navbar() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -46,26 +47,7 @@ export default function Navbar() {
 
         const role = response.data?.data?.role;
 
-        switch (role) {
-          case "admin":
-            setDashboard("/admin");
-            break;
-
-          case "sports_officer":
-            setDashboard("/sports-officer");
-            break;
-
-          case "college_coordinator":
-            setDashboard("/college");
-            break;
-
-          case "student":
-            setDashboard("/student");
-            break;
-
-          default:
-            setDashboard("/auth/check");
-        }
+        setDashboard(ROLE_HOME[role] || "/auth/check");
       } catch (error) {
         console.error(
           "Failed to determine dashboard:",

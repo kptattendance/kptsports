@@ -73,10 +73,7 @@ router.put(
   "/:id",
   requireAuth,
   resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer"
-  ),
+  requireRole("admin"),
   updateInstitution
 );
 
@@ -102,10 +99,7 @@ router.patch(
   "/:id/status",
   requireAuth,
   resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer"
-  ),
+  requireRole("admin"),
   toggleInstitutionStatus
 );
 

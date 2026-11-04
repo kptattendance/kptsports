@@ -11,6 +11,8 @@ import sendError from "../utils/sendError.js";
 const ADMIN_CREATED_ROLES = [
   "admin",
   "sports_officer",
+  "sports_coordinator",
+  "office_staff",
   "college_coordinator",
 ];
 
@@ -18,6 +20,8 @@ const ADMIN_CREATED_ROLES = [
 const ALL_ROLES = [
   "admin",
   "sports_officer",
+  "sports_coordinator",
+  "office_staff",
   "college_coordinator",
   "student",
 ];

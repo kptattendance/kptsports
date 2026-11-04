@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 
 import { useState } from "react";
+import { useCurrentUser } from "../components/RoleProtected";
+import { canOpenPage, ROLE_LABELS } from "../lib/roles";
 
 const menuGroups = [
   {
@@ -123,7 +125,25 @@ export default function AdminSidebar() {
     setMobileOpen(false);
   };
 
-  const currentItem = menuGroups
+  const user = useCurrentUser();
+  const role = user?.role;
+
+  // Only the pages this role can open
+  const visibleGroups = menuGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        canOpenPage(role, item.href)
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  const displayName =
+    role === "admin"
+      ? "Administrator"
+      : user?.name || ROLE_LABELS[role] || "Staff";
+
+  const currentItem = visibleGroups
     .flatMap((group) => group.items)
     .find((item) => isActive(item.href));
 
@@ -191,7 +211,7 @@ export default function AdminSidebar() {
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 lg:hidden">
 
           <span className="text-sm font-bold text-slate-900">
-            Admin Menu
+            Menu
           </span>
 
           <button
@@ -214,17 +234,19 @@ export default function AdminSidebar() {
           <div className="flex items-center gap-3">
 
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
-              A
+              {displayName.charAt(0).toUpperCase()}
             </div>
 
             <div className="min-w-0">
 
               <p className="truncate text-sm font-semibold text-slate-900">
-                Administrator
+                {displayName}
               </p>
 
               <p className="text-xs text-orange-600">
-                System Administrator
+                {role === "admin"
+                  ? "System Administrator"
+                  : ROLE_LABELS[role] || ""}
               </p>
 
             </div>
@@ -239,7 +261,7 @@ export default function AdminSidebar() {
 
         <div className="flex-1 overflow-y-auto px-4 py-5">
 
-          {menuGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div
               key={group.title}
               className="mb-6"

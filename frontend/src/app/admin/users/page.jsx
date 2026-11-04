@@ -41,8 +41,15 @@ const userRoleOptions = [
   },
   {
     value: "sports_officer",
-    // Can only enter results and print certificates
-    label: "Sports Officer / Office (Results only)",
+    label: "Sports Officer (Applications, Attendance, Results)",
+  },
+  {
+    value: "sports_coordinator",
+    label: "Sports Coordinator (Attendance, Results)",
+  },
+  {
+    value: "office_staff",
+    label: "Office Staff (Results only)",
   },
   {
     value: "college_coordinator",
@@ -900,6 +907,12 @@ const handleDeleteSelected = async () => {
       case "sports_officer":
         return "Sports Officer";
 
+      case "sports_coordinator":
+        return "Sports Coordinator";
+
+      case "office_staff":
+        return "Office Staff";
+
       case "college_coordinator":
         return "College Coordinator";
 
@@ -922,6 +935,12 @@ const handleDeleteSelected = async () => {
 
       case "sports_officer":
         return "bg-blue-50 text-blue-700";
+
+      case "sports_coordinator":
+        return "bg-emerald-50 text-emerald-700";
+
+      case "office_staff":
+        return "bg-amber-50 text-amber-700";
 
       case "college_coordinator":
         return "bg-purple-50 text-purple-700";
@@ -1035,6 +1054,14 @@ const handleDeleteSelected = async () => {
 
             <option value="sports_officer">
               Sports Officer
+            </option>
+
+            <option value="sports_coordinator">
+              Sports Coordinator
+            </option>
+
+            <option value="office_staff">
+              Office Staff
             </option>
 
             <option value="college_coordinator">

@@ -52,10 +52,7 @@ router.post(
   "/",
   requireAuth,
   resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer"
-  ),
+  requireRole("admin"),
   createEvent
 );
 
@@ -64,10 +61,7 @@ router.put(
   "/:id",
   requireAuth,
   resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer"
-  ),
+  requireRole("admin"),
   updateEvent
 );
 
@@ -85,10 +79,7 @@ router.patch(
   "/:id/application-status",
   requireAuth,
   resolveUser,
-  requireRole(
-    "admin",
-    "sports_officer"
-  ),
+  requireRole("admin"),
   toggleApplicationStatus
 );
 

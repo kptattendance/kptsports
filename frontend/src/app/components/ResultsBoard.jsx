@@ -22,6 +22,16 @@ import {
   showSuccess,
   showWarning,
 } from "@/app/lib/alerts";
+import {
+  EventMeta,
+  FilterSelect,
+  SummaryCard,
+  formatDateTime,
+  getErrorMessage,
+  getTeamSize,
+  pickDefaultMeet,
+  toLabel,
+} from "./boardParts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -55,76 +65,9 @@ const MEASURED_RESULT_TYPES = [
   "points",
 ];
 
-// The meet picked when the page opens
-const MEET_STATUS_PRIORITY = [
-  "ongoing",
-  "applications_closed",
-  "completed",
-  "applications_open",
-  "draft",
-];
-
 // =====================================================
 // HELPERS
 // =====================================================
-
-const toLabel = (value) =>
-  String(value || "").replace(/_/g, " ");
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const pickDefaultMeet = (meets) => {
-  const active = meets.filter(
-    (meet) => meet.isActive !== false
-  );
-
-  const pool = active.length ? active : meets;
-
-  for (const status of MEET_STATUS_PRIORITY) {
-    const found = pool.find(
-      (meet) => meet.status === status
-    );
-
-    if (found) {
-      return found._id;
-    }
-  }
-
-  return pool[0]?._id || "";
-};
-
-// Reads the message out of an API error, including
-// errors returned for PDF (blob) requests.
-const getErrorMessage = async (err, fallback) => {
-  const data = err?.response?.data;
-
-  if (data instanceof Blob) {
-    try {
-      return JSON.parse(await data.text()).message || fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
-  return data?.message || fallback;
-};
 
 // Must be called straight from a click, before any
 // await, or the browser blocks the new tab.
@@ -139,11 +82,6 @@ const openPrintWindow = () => {
 
   return printWindow;
 };
-
-const getTeamSize = (event) =>
-  event?.eventType === "team"
-    ? Math.max(Number(event.teamSize) || 1, 1)
-    : 1;
 
 // =====================================================
 // PAGE
@@ -806,18 +744,6 @@ export default function ResultsBoard() {
 
 const isPrintingKey = (printing, eventId, type, applicationId = "all") =>
   printing === `${eventId}-${type}-${applicationId}`;
-
-function EventMeta({ event }) {
-  return (
-    <p className="mt-0.5 text-xs text-slate-500">
-      {event.code} · <span className="capitalize">{event.gender}</span>
-      {event.participationCategory === "physically_challenged" &&
-        " · PC"}
-      {event.eventType === "team" &&
-        ` · Team of ${getTeamSize(event)}`}
-    </p>
-  );
-}
 
 // Winners of one place, each with a reprint button
 function PlaceWinners({ event, result, printing, onPrint }) {
@@ -1553,52 +1479,4 @@ function emptyPlaces(teamSize) {
     2: Array(teamSize).fill(""),
     3: Array(teamSize).fill(""),
   };
-}
-
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  active,
-  onClick,
-  tone,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 text-left transition hover:border-orange-300 sm:p-4 ${
-        active
-          ? "border-orange-400 ring-2 ring-orange-100"
-          : "border-slate-200"
-      }`}
-    >
-      <span className="hidden rounded-xl bg-slate-50 p-2.5 sm:block">
-        <Icon size={20} className={tone} />
-      </span>
-
-      <span>
-        <span className={`block text-xl font-bold sm:text-2xl ${tone}`}>
-          {value}
-        </span>
-        <span className="text-xs text-slate-500">{label}</span>
-      </span>
-    </button>
-  );
-}
-
-function FilterSelect({ value, onChange, options }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base capitalize text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 sm:h-10 sm:text-sm"
-    >
-      {options.map(([optionValue, optionLabel]) => (
-        <option key={optionValue} value={optionValue}>
-          {optionLabel}
-        </option>
-      ))}
-    </select>
-  );
 }
