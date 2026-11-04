@@ -1,25 +1,55 @@
+import mongoose from "mongoose";
 import SportsResult from "../models/SportsResult.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsApplication from "../models/SportsApplication.js";
 import sendError from "../utils/sendError.js";
+import { syncWinnerCertificates } from "../utils/syncCertificates.js";
+
+const EVENT_FIELDS =
+  "code name category gender participationCategory eventType teamSize resultType unit isActive displayOrder";
+
+const PARTICIPANT_FIELDS =
+  "name registerNumber collegeCode semester branch gender photo status";
+
+const POSITIONS = [1, 2, 3];
+
+// Students rejected by the admin take no part in results
+const notRejected = { $ne: "rejected" };
+
+// ======================================================
+// HELPER: find the meet given in the request
+// ======================================================
+
+const findMeet = async (meetId) => {
+  if (!meetId || !mongoose.isValidObjectId(meetId)) {
+    return null;
+  }
+
+  return SportsMeet.findById(meetId);
+};
+
+// ======================================================
+// HELPER: results of one event, with participant names
+// ======================================================
+
+const findEventResults = (meetId, eventId) =>
+  SportsResult.find({
+    meet: meetId,
+    event: eventId,
+  })
+    .populate("participants", PARTICIPANT_FIELDS)
+    .sort({ position: 1 })
+    .lean();
 
 // ======================================================
 // GET ALL RESULTS
-// GET /api/sports-results
+// GET /api/sports-results?meetId=&eventId=&position=
 // ======================================================
 
-export const getAllResults = async (
-  req,
-  res
-) => {
+export const getAllResults = async (req, res) => {
   try {
-    const {
-      meetId,
-      eventId,
-      position,
-      final,
-    } = req.query;
+    const { meetId, eventId, position } = req.query;
 
     const filter = {};
 
@@ -32,691 +62,391 @@ export const getAllResults = async (
     }
 
     if (position) {
-      filter.position =
-        Number(position);
+      filter.position = Number(position);
     }
 
-    if (final === "true") {
-      filter.isFinal = true;
-    }
-
-    if (final === "false") {
-      filter.isFinal = false;
-    }
-
-    const results =
-      await SportsResult.find(filter)
-        .populate(
-          "meet",
-          "name shortName year startDate endDate venue"
-        )
-        .populate(
-          "event",
-          "code name category gender participationCategory eventType teamSize resultType unit"
-        )
-        .populate({
-          path: "participants",
-          select:
-            "name registerNumber collegeCode fatherName motherName dateOfBirth gender semester branch phone email photo participationCategory status",
-        })
-        .sort({
-          event: 1,
-          position: 1,
-        });
+    const results = await SportsResult.find(filter)
+      .populate("meet", "name shortName year")
+      .populate("event", EVENT_FIELDS)
+      .populate("participants", PARTICIPANT_FIELDS)
+      .sort({ event: 1, position: 1 });
 
     return res.status(200).json({
       success: true,
       count: results.length,
       results,
     });
-
   } catch (error) {
-
-    console.error(
-      "GET ALL RESULTS ERROR:",
-      error
-    );
+    console.error("GET ALL RESULTS ERROR:", error);
 
     return sendError(res, error, "Failed to fetch results.");
   }
 };
 
-
 // ======================================================
-// GET RESULTS FOR ONE EVENT
-// GET /api/sports-results/event/:eventId
+// RESULT BOARD
+// GET /api/sports-results/board?meetId=
+//
+// One row per event: how many students registered,
+// the saved 1st / 2nd / 3rd places, and when they were
+// entered. Rows with places are "entered", so an event
+// is never entered twice by mistake.
 // ======================================================
 
-export const getResultsByEvent =
-  async (
-    req,
-    res
-  ) => {
+export const getResultBoard = async (req, res) => {
+  try {
+    const meet = await findMeet(req.query.meetId);
 
-    try {
-
-      const {
-        eventId,
-      } = req.params;
-
-      const {
-        meetId,
-      } = req.query;
-
-      if (!meetId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "meetId is required.",
-        });
-      }
-
-      const event =
-        await Event.findById(
-          eventId
-        );
-
-      if (!event) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Event not found.",
-        });
-      }
-
-      const results =
-        await SportsResult.find({
-          meet: meetId,
-          event: eventId,
-        })
-          .populate(
-            "event",
-            "code name category gender participationCategory eventType teamSize resultType unit"
-          )
-          .populate({
-            path: "participants",
-            select:
-              "name registerNumber collegeCode fatherName motherName dateOfBirth gender semester branch phone email photo participationCategory status",
-          })
-          .sort({
-            position: 1,
-          });
-
-      return res.status(200).json({
-        success: true,
-        event,
-        results,
+    if (!meet) {
+      return res.status(404).json({
+        success: false,
+        message: "Sports meet not found.",
       });
-
-    } catch (error) {
-
-      console.error(
-        "GET EVENT RESULTS ERROR:",
-        error
-      );
-
-      return sendError(res, error, "Failed to fetch event results.");
     }
-  };
 
+    const [events, participantCounts, results] =
+      await Promise.all([
+        Event.find({})
+          .select(EVENT_FIELDS)
+          .sort({ displayOrder: 1, name: 1 })
+          .lean(),
 
-// ======================================================
-// CREATE / UPDATE RESULT
-// POST /api/sports-results
-// ======================================================
-
-export const saveResult =
-  async (
-    req,
-    res
-  ) => {
-
-    try {
-
-      const {
-        meetId,
-        eventId,
-        position,
-        participants,
-        resultValue,
-        resultUnit,
-        remarks,
-      } = req.body;
-
-      // --------------------------------------------------
-      // BASIC VALIDATION
-      // --------------------------------------------------
-
-      if (
-        !meetId ||
-        !eventId ||
-        !position
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "meetId, eventId and position are required.",
-        });
-      }
-
-      const positionNumber =
-        Number(position);
-
-      if (
-        ![1, 2, 3].includes(
-          positionNumber
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Position must be 1, 2 or 3.",
-        });
-      }
-
-      if (
-        !Array.isArray(
-          participants
-        ) ||
-        participants.length === 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "At least one participant is required.",
-        });
-      }
-
-      // --------------------------------------------------
-      // MEET
-      // --------------------------------------------------
-
-      const meet =
-        await SportsMeet.findById(
-          meetId
-        );
-
-      if (!meet) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Sports meet not found.",
-        });
-      }
-
-      // --------------------------------------------------
-      // EVENT
-      // --------------------------------------------------
-
-      const event =
-        await Event.findById(
-          eventId
-        );
-
-      if (!event) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Event not found.",
-        });
-      }
-
-      // --------------------------------------------------
-      // TEAM SIZE VALIDATION
-      // --------------------------------------------------
-
-      const expectedTeamSize =
-        event.eventType ===
-        "team"
-          ? Number(
-              event.teamSize || 1
-            )
-          : 1;
-
-      if (
-        participants.length !==
-        expectedTeamSize
-      ) {
-
-        return res.status(400).json({
-          success: false,
-          message:
-            event.eventType ===
-            "team"
-              ? `This event requires exactly ${expectedTeamSize} participants.`
-              : "This is an individual event. Only one participant is allowed.",
-        });
-
-      }
-
-      // --------------------------------------------------
-      // REMOVE DUPLICATE PARTICIPANTS
-      // --------------------------------------------------
-
-      const uniqueParticipants =
-        [
-          ...new Set(
-            participants.map(
-              (id) =>
-                String(id)
-            )
-          ),
-        ];
-
-      if (
-        uniqueParticipants.length !==
-        participants.length
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Duplicate participants are not allowed.",
-        });
-      }
-
-      // --------------------------------------------------
-      // GET APPLICATIONS
-      // --------------------------------------------------
-
-      const applications =
-        await SportsApplication.find({
-          _id: {
-            $in:
-              uniqueParticipants,
-          },
-          meet: meetId,
-          selectedEvents: eventId,
-        });
-
-      if (
-        applications.length !==
-        uniqueParticipants.length
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "One or more selected participants are not registered for this event.",
-        });
-      }
-
-      // --------------------------------------------------
-      // CHECK EXISTING FINAL RESULT
-      // --------------------------------------------------
-
-      const existingResult =
-        await SportsResult.findOne({
-          meet: meetId,
-          event: eventId,
-          position:
-            positionNumber,
-        });
-
-      if (
-        existingResult?.isFinal
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "This result has already been finalized and cannot be changed.",
-        });
-      }
-
-      // --------------------------------------------------
-      // CHECK PARTICIPANT ALREADY HAS ANOTHER POSITION
-      // --------------------------------------------------
-
-      const participantAlreadyPlaced =
-        await SportsResult.findOne({
-          meet: meetId,
-          event: eventId,
-          position: {
-            $ne:
-              positionNumber,
-          },
-          participants: {
-            $in:
-              uniqueParticipants,
-          },
-        });
-
-      if (
-        participantAlreadyPlaced
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "One or more participants are already assigned to another position in this event.",
-        });
-      }
-
-      // --------------------------------------------------
-      // SAVE / UPDATE
-      // --------------------------------------------------
-
-      const result =
-        await SportsResult.findOneAndUpdate(
+        SportsApplication.aggregate([
           {
-            meet: meetId,
-            event: eventId,
-            position:
-              positionNumber,
-          },
-          {
-            $set: {
-              meet: meetId,
-              event: eventId,
-              position:
-                positionNumber,
-              participants:
-                uniqueParticipants,
-              resultValue:
-                resultValue ||
-                "",
-              resultUnit:
-                resultUnit ||
-                event.unit ||
-                "",
-              remarks:
-                remarks ||
-                "",
-              isFinal: false,
-              finalizedAt: null,
+            $match: {
+              meet: meet._id,
+              status: notRejected,
             },
           },
+          { $unwind: "$selectedEvents" },
           {
-            new: true,
-            upsert: true,
-            runValidators: true,
-          }
-        )
-          .populate(
-            "event",
-            "code name category gender participationCategory eventType teamSize resultType unit"
-          )
-          .populate({
-            path: "participants",
-            select:
-              "name registerNumber collegeCode fatherName motherName dateOfBirth gender semester branch phone email photo participationCategory status",
-          });
+            $group: {
+              _id: "$selectedEvents",
+              count: { $sum: 1 },
+            },
+          },
+        ]),
 
-      return res.status(200).json({
-        success: true,
-        message:
-          `${positionNumber === 1 ? "1st" : positionNumber === 2 ? "2nd" : "3rd"} place result saved successfully.`,
-        result,
-      });
+        SportsResult.find({ meet: meet._id })
+          .populate("participants", "name registerNumber collegeCode")
+          .lean(),
+      ]);
 
-    } catch (error) {
+    const countByEvent = new Map(
+      participantCounts.map((item) => [String(item._id), item.count])
+    );
 
-      console.error(
-        "SAVE RESULT ERROR:",
-        error
+    const resultsByEvent = new Map();
+
+    for (const result of results) {
+      const key = String(result.event);
+
+      if (!resultsByEvent.has(key)) {
+        resultsByEvent.set(key, []);
+      }
+
+      resultsByEvent.get(key).push(result);
+    }
+
+    const rows = events.map((event) => {
+      const key = String(event._id);
+
+      const eventResults = (resultsByEvent.get(key) || []).sort(
+        (a, b) => a.position - b.position
       );
 
-      return sendError(res, error, "Failed to save result.");
+      const enteredAt = eventResults.reduce(
+        (latest, result) =>
+          !latest || result.updatedAt > latest
+            ? result.updatedAt
+            : latest,
+        null
+      );
+
+      return {
+        event,
+        participantCount: countByEvent.get(key) || 0,
+        results: eventResults.map((result) => ({
+          position: result.position,
+          resultValue: result.resultValue,
+          participants: result.participants,
+        })),
+        entered: eventResults.length > 0,
+        enteredAt,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      meet,
+      rows,
+    });
+  } catch (error) {
+    console.error("RESULT BOARD ERROR:", error);
+
+    return sendError(res, error, "Failed to load results.");
+  }
+};
+
+// ======================================================
+// RESULT SHEET FOR ONE EVENT
+// GET /api/sports-results/event/:eventId?meetId=
+//
+// The registered students (to choose winners from)
+// and the places already saved.
+// ======================================================
+
+export const getEventResultSheet = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const [meet, event] = await Promise.all([
+      findMeet(req.query.meetId),
+      Event.findById(eventId).select(EVENT_FIELDS).lean(),
+    ]);
+
+    if (!meet) {
+      return res.status(404).json({
+        success: false,
+        message: "Sports meet not found.",
+      });
     }
-  };
 
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    const [participants, results] = await Promise.all([
+      SportsApplication.find({
+        meet: meet._id,
+        selectedEvents: event._id,
+        status: notRejected,
+      })
+        .select(PARTICIPANT_FIELDS)
+        .sort({ name: 1 })
+        .lean(),
+
+      findEventResults(meet._id, event._id),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      event,
+      participants,
+      results,
+    });
+  } catch (error) {
+    console.error("GET EVENT RESULT SHEET ERROR:", error);
+
+    return sendError(res, error, "Failed to load event results.");
+  }
+};
 
 // ======================================================
-// FINALIZE EVENT RESULTS
-// POST /api/sports-results/event/:eventId/finalize
+// SAVE ALL PLACES OF ONE EVENT
+// PUT /api/sports-results/event/:eventId
+//
+// Body:
+// {
+//   meetId,
+//   positions: [
+//     { position: 1, participants: [applicationId], resultValue },
+//     { position: 2, participants: [] },   <- empty = no 2nd place
+//   ]
+// }
+//
+// Saving again replaces the earlier entry, so a mistake
+// is fixed by simply entering the result again.
+// Winner certificates are kept in step with the result.
 // ======================================================
 
-export const finalizeEventResults =
-  async (
-    req,
-    res
-  ) => {
+export const saveEventResults = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { meetId, positions } = req.body || {};
 
-    try {
+    const [meet, event] = await Promise.all([
+      findMeet(meetId),
+      Event.findById(eventId),
+    ]);
 
-      const {
-        eventId,
-      } = req.params;
+    if (!meet) {
+      return res.status(404).json({
+        success: false,
+        message: "Sports meet not found.",
+      });
+    }
 
-      const {
-        meetId,
-      } = req.body;
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
 
-      if (!meetId) {
+    if (!Array.isArray(positions)) {
+      return res.status(400).json({
+        success: false,
+        message: "Result details are missing.",
+      });
+    }
+
+    // --------------------------------------------------
+    // CLEAN INPUT
+    // --------------------------------------------------
+
+    const entries = [];
+    const seenPositions = new Set();
+
+    for (const item of positions) {
+      const position = Number(item?.position);
+
+      if (!POSITIONS.includes(position)) {
+        return res.status(400).json({
+          success: false,
+          message: "Position must be 1, 2 or 3.",
+        });
+      }
+
+      if (seenPositions.has(position)) {
+        return res.status(400).json({
+          success: false,
+          message: "Each position can be entered only once.",
+        });
+      }
+
+      seenPositions.add(position);
+
+      const participants = Array.isArray(item.participants)
+        ? item.participants.filter(Boolean).map(String)
+        : [];
+
+      if (!participants.every((id) => mongoose.isValidObjectId(id))) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid participant selected.",
+        });
+      }
+
+      if (participants.length > 0) {
+        entries.push({
+          position,
+          participants,
+          resultValue: String(item.resultValue || "").trim().slice(0, 50),
+        });
+      }
+    }
+
+    // --------------------------------------------------
+    // TEAM SIZE
+    // --------------------------------------------------
+
+    const label = (position) =>
+      position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
+
+    const expectedSize =
+      event.eventType === "team" ? Number(event.teamSize || 1) : 1;
+
+    for (const entry of entries) {
+      if (entry.participants.length !== expectedSize) {
         return res.status(400).json({
           success: false,
           message:
-            "meetId is required.",
+            event.eventType === "team"
+              ? `${label(entry.position)} place needs exactly ${expectedSize} students (team event).`
+              : `${label(entry.position)} place can have only one student.`,
         });
       }
+    }
 
-      // --------------------------------------------------
-      // EVENT
-      // --------------------------------------------------
+    // --------------------------------------------------
+    // SAME STUDENT IN TWO PLACES
+    // --------------------------------------------------
 
-      const event =
-        await Event.findById(
-          eventId
-        );
+    const allIds = entries.flatMap((entry) => entry.participants);
 
-      if (!event) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Event not found.",
-        });
-      }
+    if (new Set(allIds).size !== allIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "A student cannot win more than one place in the same event.",
+      });
+    }
 
-      // --------------------------------------------------
-      // RESULTS
-      // --------------------------------------------------
+    // --------------------------------------------------
+    // STUDENTS MUST BE REGISTERED FOR THIS EVENT
+    // --------------------------------------------------
 
-      const results =
-        await SportsResult.find({
-          meet: meetId,
-          event: eventId,
-        }).sort({
-          position: 1,
-        });
+    if (allIds.length > 0) {
+      const registered = await SportsApplication.countDocuments({
+        _id: { $in: allIds },
+        meet: meet._id,
+        selectedEvents: event._id,
+        status: notRejected,
+      });
 
-      if (
-        results.length === 0
-      ) {
+      if (registered !== allIds.length) {
         return res.status(400).json({
           success: false,
-          message:
-            "No results have been entered for this event.",
+          message: "One or more selected students are not registered for this event.",
         });
       }
+    }
 
-      // --------------------------------------------------
-      // CHECK POSITIONS
-      // --------------------------------------------------
+    // --------------------------------------------------
+    // SAVE
+    // --------------------------------------------------
 
-      const positions =
-        results.map(
-          (result) =>
-            result.position
-        );
+    const now = new Date();
 
-      const hasDuplicatePositions =
-        new Set(
-          positions
-        ).size !==
-        positions.length;
+    await SportsResult.deleteMany({
+      meet: meet._id,
+      event: event._id,
+      position: {
+        $nin: entries.map((entry) => entry.position),
+      },
+    });
 
-      if (
-        hasDuplicatePositions
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Duplicate positions found.",
-        });
-      }
-
-      // --------------------------------------------------
-      // FINALIZE
-      // --------------------------------------------------
-
-      await SportsResult.updateMany(
+    for (const entry of entries) {
+      await SportsResult.findOneAndUpdate(
         {
-          meet: meetId,
-          event: eventId,
+          meet: meet._id,
+          event: event._id,
+          position: entry.position,
         },
         {
           $set: {
+            participants: entry.participants,
+            resultValue: entry.resultValue,
+            resultUnit: event.unit || "",
             isFinal: true,
-            finalizedAt:
-              new Date(),
+            finalizedAt: now,
           },
+        },
+        {
+          upsert: true,
+          runValidators: true,
         }
       );
-
-      const finalResults =
-        await SportsResult.find({
-          meet: meetId,
-          event: eventId,
-        })
-          .populate(
-            "event",
-            "code name category gender participationCategory eventType teamSize resultType unit"
-          )
-          .populate({
-            path: "participants",
-            select:
-              "name registerNumber collegeCode fatherName motherName dateOfBirth gender semester branch phone email photo participationCategory status",
-          })
-          .sort({
-            position: 1,
-          });
-
-      return res.status(200).json({
-        success: true,
-        message:
-          "Event results finalized successfully.",
-        results:
-          finalResults,
-      });
-
-    } catch (error) {
-
-      console.error(
-        "FINALIZE RESULTS ERROR:",
-        error
-      );
-
-      return sendError(res, error, "Failed to finalize event results.");
     }
-  };
 
+    const results = await findEventResults(meet._id, event._id);
 
-// ======================================================
-// GET ONE RESULT
-// GET /api/sports-results/:id
-// ======================================================
+    await syncWinnerCertificates({ meet, event, results });
 
-export const getResultById =
-  async (
-    req,
-    res
-  ) => {
+    return res.status(200).json({
+      success: true,
+      message:
+        entries.length > 0
+          ? `Result saved for ${event.name}.`
+          : `Result cleared for ${event.name}.`,
+      results,
+    });
+  } catch (error) {
+    console.error("SAVE EVENT RESULTS ERROR:", error);
 
-    try {
-
-      const result =
-        await SportsResult.findById(
-          req.params.id
-        )
-          .populate(
-            "meet",
-            "name shortName year startDate endDate venue"
-          )
-          .populate(
-            "event",
-            "code name category gender participationCategory eventType teamSize resultType unit"
-          )
-          .populate({
-            path: "participants",
-            select:
-              "name registerNumber collegeCode fatherName motherName dateOfBirth gender semester branch phone email photo participationCategory status",
-          });
-
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Result not found.",
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        result,
-      });
-
-    } catch (error) {
-
-      console.error(
-        "GET RESULT ERROR:",
-        error
-      );
-
-      return sendError(res, error, "Failed to fetch result.");
-    }
-  };
-
-
-// ======================================================
-// DELETE RESULT
-// DELETE /api/sports-results/:id
-// ======================================================
-
-export const deleteResult =
-  async (
-    req,
-    res
-  ) => {
-
-    try {
-
-      const result =
-        await SportsResult.findById(
-          req.params.id
-        );
-
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Result not found.",
-        });
-      }
-
-      if (
-        result.isFinal
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Finalized results cannot be deleted.",
-        });
-      }
-
-      await SportsResult.findByIdAndDelete(
-        req.params.id
-      );
-
-      return res.status(200).json({
-        success: true,
-        message:
-          "Result deleted successfully.",
-      });
-
-    } catch (error) {
-
-      console.error(
-        "DELETE RESULT ERROR:",
-        error
-      );
-
-      return sendError(res, error, "Failed to delete result.");
-    }
-  };
+    return sendError(res, error, "Failed to save result.");
+  }
+};

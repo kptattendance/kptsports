@@ -3,8 +3,7 @@ import express from "express";
 import {
   getAllCertificates,
   getCertificateById,
-  generateCertificatesForEvent,
-  deleteCertificate,
+  printEventCertificates,
   downloadCertificatePdf,
 } from "../controllers/certificateController.js";
 
@@ -25,6 +24,17 @@ const adminOnly = [
 ];
 
 // =====================================================
+// PRINT CERTIFICATES OF ONE EVENT (one PDF)
+// GET /api/certificates/event/:eventId/print?meetId=&type=
+// =====================================================
+
+router.get(
+  "/event/:eventId/print",
+  ...adminOnly,
+  printEventCertificates
+);
+
+// =====================================================
 // GET ALL CERTIFICATES
 // =====================================================
 
@@ -42,26 +52,6 @@ router.get(
   "/:id",
   ...adminOnly,
   getCertificateById
-);
-
-// =====================================================
-// GENERATE CERTIFICATES FOR EVENT
-// =====================================================
-
-router.post(
-  "/event/:eventId/generate",
-  ...adminOnly,
-  generateCertificatesForEvent
-);
-
-// =====================================================
-// DELETE CERTIFICATE
-// =====================================================
-
-router.delete(
-  "/:id",
-  ...adminOnly,
-  deleteCertificate
 );
 
 // =====================================================

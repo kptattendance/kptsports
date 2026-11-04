@@ -1,10 +1,16 @@
+import mongoose from "mongoose";
 import Certificate from "../models/Certificate.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsApplication from "../models/SportsApplication.js";
 import SportsResult from "../models/SportsResult.js";
-import generateCertificateNumber from "../utils/generateCertificateNumber.js";
-import generateCertificatePdf from "../utils/generateCertificatePdf.js";
+import generateCertificatePdf, {
+  generateCertificatesPdf,
+} from "../utils/generateCertificatePdf.js";
+import {
+  syncParticipationCertificates,
+  syncWinnerCertificates,
+} from "../utils/syncCertificates.js";
 import escapeRegex from "../utils/escapeRegex.js";
 import sendError from "../utils/sendError.js";
 
@@ -283,400 +289,196 @@ export const getCertificateById =
   };
 
 // =====================================================
-// GENERATE CERTIFICATES FOR FINALIZED EVENT
+// PRINT CERTIFICATES OF ONE EVENT
+// GET /api/certificates/event/:eventId/print
+//   ?meetId=...
+//   &type=winner | participation
+//   &applicationId=...   (optional: one student only)
+//
+// Creates any missing certificates from the saved
+// result, then returns them as one PDF (one per page).
+// Printing again re-uses the same certificates, so
+// there are never duplicates.
 // =====================================================
 
-export const generateCertificatesForEvent =
+const PRINT_TYPES = ["winner", "participation"];
+
+export const printEventCertificates =
   async (req, res) => {
     try {
-      const { eventId } =
-        req.params;
+      const { eventId } = req.params;
 
-      const meetId =
-        req.body?.meetId;
+      const {
+        meetId,
+        type = "winner",
+        applicationId,
+      } = req.query;
 
-      if (!meetId) {
+      if (!PRINT_TYPES.includes(type)) {
         return res.status(400).json({
           success: false,
-          message:
-            "meetId is required.",
+          message: "Invalid certificate type.",
         });
       }
 
-      // =================================================
-      // GET EVENT
-      // =================================================
+      if (
+        !mongoose.isValidObjectId(meetId) ||
+        (applicationId &&
+          !mongoose.isValidObjectId(applicationId))
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid ID.",
+        });
+      }
 
-      const event =
-        await Event.findById(
-          eventId
-        );
+      const [meet, event] = await Promise.all([
+        SportsMeet.findById(meetId),
+        Event.findById(eventId),
+      ]);
 
-      if (!event) {
+      if (!meet || !event) {
         return res.status(404).json({
           success: false,
-          message:
-            "Event not found",
+          message: !meet
+            ? "Sports meet not found"
+            : "Event not found",
         });
       }
 
       // =================================================
-      // GET MEET
-      // =================================================
-
-      const meet =
-        await SportsMeet.findById(
-          meetId
-        );
-
-      if (!meet) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Sports meet not found",
-        });
-      }
-
-      // =================================================
-      // CHECK FINAL RESULTS
+      // SAVED RESULT
       // =================================================
 
       const results =
         await SportsResult.find({
           meet: meet._id,
           event: event._id,
-          isFinal: true,
-        }).sort({
-          position: 1,
-        });
-
-      if (!results.length) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Final results are not available for this event.",
-        });
-      }
-
-      // =================================================
-      // GET ALL APPLICATIONS
-      // =================================================
-
-      const applications =
-        await SportsApplication.find({
-          meet: meet._id,
-          selectedEvents:
-            event._id,
         }).lean();
 
-      if (!applications.length) {
+      if (
+        type === "winner" &&
+        results.length === 0
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            "No participants found for this event.",
+            "Enter the result for this event first.",
         });
       }
 
       // =================================================
-      // FIND WINNER APPLICATION IDS
+      // MAKE SURE CERTIFICATES EXIST
       // =================================================
 
-      const winnerApplicationIds =
-        new Set();
-
-      for (
-        const result of results
-      ) {
-        for (
-          const participant of
-            result.participants
-        ) {
-          winnerApplicationIds.add(
-            String(participant)
-          );
-        }
-      }
-
-      // =================================================
-      // COUNTERS
-      // =================================================
-
-      let winnerCount = 0;
-
-      let participationCount = 0;
-
-      // =================================================
-      // GENERATE WINNER CERTIFICATES
-      // =================================================
-
-      for (
-        const result of results
-      ) {
-        for (
-          const participantId of
-            result.participants
-        ) {
-          const application =
-            applications.find(
-              (item) =>
-                String(item._id) ===
-                String(participantId)
-            );
-
-          if (!application) {
-            continue;
-          }
-
-          // ---------------------------------------------
-          // CHECK EXISTING
-          // ---------------------------------------------
-
-          const existing =
-            await Certificate.findOne({
-              meet: meet._id,
-              event: event._id,
-              application:
-                application._id,
-              certificateType:
-                "winner",
-            });
-
-          if (existing) {
-            continue;
-          }
-
-          // ---------------------------------------------
-          // CERTIFICATE NUMBER
-          // ---------------------------------------------
-
-          const certificateNumber =
-            await generateCertificateNumber(
-              meet.year
-            );
-
-          // ---------------------------------------------
-          // PHOTO
-          // ---------------------------------------------
-
-          const photoData = {
-            url:
-              application.photo?.url ||
-              "",
-
-            publicId:
-              application.photo?.publicId ||
-              "",
-          };
-
-
-          // ---------------------------------------------
-          // CREATE CERTIFICATE
-          // ---------------------------------------------
-
-          await Certificate.create({
-            certificateNumber,
-
-            meet: meet._id,
-
-            event: event._id,
-
-            application:
-              application._id,
-
-            certificateType:
-              "winner",
-
-            position:
-              result.position,
-
-            studentName:
-              application.name,
-
-            registerNumber:
-              application.registerNumber,
-
-            collegeCode:
-              application.collegeCode,
-
-            photo: photoData,
-
-            eventName:
-              event.name,
-
-            meetName:
-              meet.name,
-
-            issuedAt:
-              new Date(),
-          });
-
-          winnerCount++;
-        }
-      }
-
-      // =================================================
-      // GENERATE PARTICIPATION CERTIFICATES
-      // =================================================
-
-      for (
-        const application of
-          applications
-      ) {
-        const applicationId =
-          String(application._id);
-
-        if (
-          winnerApplicationIds.has(
-            applicationId
-          )
-        ) {
-          continue;
-        }
-
-        // ---------------------------------------------
-        // CHECK EXISTING
-        // ---------------------------------------------
-
-        const existing =
-          await Certificate.findOne({
-            meet: meet._id,
-            event: event._id,
-            application:
-              application._id,
-            certificateType:
-              "participation",
-          });
-
-        if (existing) {
-          continue;
-        }
-
-        // ---------------------------------------------
-        // CERTIFICATE NUMBER
-        // ---------------------------------------------
-
-        const certificateNumber =
-          await generateCertificateNumber(
-            meet.year
-          );
-
-        // ---------------------------------------------
-        // PHOTO
-        // ---------------------------------------------
-
-        const photoData = {
-          url:
-            application.photo?.url ||
-            "",
-
-          publicId:
-            application.photo?.publicId ||
-            "",
-        };
-
-
-        // ---------------------------------------------
-        // CREATE CERTIFICATE
-        // ---------------------------------------------
-
-        await Certificate.create({
-          certificateNumber,
-
-          meet: meet._id,
-
-          event: event._id,
-
-          application:
-            application._id,
-
-          certificateType:
-            "participation",
-
-          position: null,
-
-          studentName:
-            application.name,
-
-          registerNumber:
-            application.registerNumber,
-
-          collegeCode:
-            application.collegeCode,
-
-          photo: photoData,
-
-          eventName:
-            event.name,
-
-          meetName:
-            meet.name,
-
-          issuedAt:
-            new Date(),
-        });
-
-        participationCount++;
-      }
-
-      // =================================================
-      // RESPONSE
-      // =================================================
-
-      return res.status(200).json({
-        success: true,
-
-        message:
-          "Certificates generated successfully.",
-
-        winnerCount,
-
-        participationCount,
+      await syncWinnerCertificates({
+        meet,
+        event,
+        results,
       });
-    } catch (error) {
-      console.error(
-        "Generate certificates error:",
-        error
-      );
 
-      return sendError(res, error, "Failed to generate certificates");
-    }
-  };
+      if (type === "participation") {
+        await syncParticipationCertificates({
+          meet,
+          event,
+          results,
+        });
+      }
 
-// =====================================================
-// DELETE CERTIFICATE
-// =====================================================
+      // =================================================
+      // LOAD CERTIFICATES TO PRINT
+      // =================================================
 
-export const deleteCertificate =
-  async (req, res) => {
-    try {
-      const certificate =
-        await Certificate.findById(
-          req.params.id
+      const filter = {
+        meet: meet._id,
+        event: event._id,
+        certificateType: type,
+      };
+
+      if (applicationId) {
+        filter.application = applicationId;
+      }
+
+      const certificates =
+        await Certificate.find(filter).sort(
+          type === "winner"
+            ? { position: 1, studentName: 1 }
+            : { studentName: 1 }
         );
 
-      if (!certificate) {
+      if (certificates.length === 0) {
         return res.status(404).json({
           success: false,
           message:
-            "Certificate not found",
+            type === "winner"
+              ? "No winner certificates to print."
+              : "No participation certificates to print. Every registered student is a winner, or nobody registered.",
         });
       }
 
-      await Certificate.findByIdAndDelete(
-        req.params.id
+      const applications =
+        await SportsApplication.find({
+          _id: {
+            $in: certificates.map(
+              (certificate) =>
+                certificate.application
+            ),
+          },
+        })
+          .select("photo name")
+          .lean();
+
+      const applicationById = new Map(
+        applications.map((application) => [
+          String(application._id),
+          application,
+        ])
       );
 
-      return res.status(200).json({
-        success: true,
-        message:
-          "Certificate deleted successfully.",
-      });
+      // =================================================
+      // ONE PDF, ONE CERTIFICATE PER PAGE
+      // =================================================
+
+      const pdfBuffer =
+        await generateCertificatesPdf(
+          certificates.map((certificate) => ({
+            certificate,
+            meet,
+            event,
+            application: applicationById.get(
+              String(certificate.application)
+            ),
+          }))
+        );
+
+      const filename =
+        `${event.code}_${type}_certificates.pdf`.replace(
+          /[^a-zA-Z0-9_.-]+/g,
+          "_"
+        );
+
+      res.setHeader(
+        "Content-Type",
+        "application/pdf"
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${filename}"`
+      );
+
+      res.setHeader(
+        "Content-Length",
+        pdfBuffer.length
+      );
+
+      return res.send(pdfBuffer);
     } catch (error) {
       console.error(
-        "Delete certificate error:",
+        "Print certificates error:",
         error
       );
 
-      return sendError(res, error, "Failed to delete certificate");
+      return sendError(res, error, "Failed to print certificates");
     }
   };

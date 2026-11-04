@@ -37,6 +37,17 @@ const nextConfig = {
     "local.sports.kptmangaluru.in",
   ],
 
+  // Certificates are now printed from the Results page
+  async redirects() {
+    return [
+      {
+        source: "/admin/certificates",
+        destination: "/admin/results",
+        permanent: true,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

@@ -14,9 +14,12 @@ import {
   Eye,
   X,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import {
+  confirmAction,
   showError,
+  showSuccess,
   showWarning,
   useAlertMessages,
 } from "@/app/lib/alerts";
@@ -84,8 +87,19 @@ export default function AdminApplicationsPage() {
   const [eventFilter, setEventFilter] =
     useState("all");
 
+  // Newest applications first by default
   const [sortBy, setSortBy] =
-    useState("name");
+    useState("submitted");
+
+  // =====================================================
+  // MULTI-SELECT (for bulk delete)
+  // =====================================================
+
+  const [selectedIds, setSelectedIds] =
+    useState(() => new Set());
+
+  const [deleting, setDeleting] =
+    useState(false);
 
   // =====================================================
   // LOAD APPLICATIONS
@@ -687,20 +701,18 @@ export default function AdminApplicationsPage() {
 
           if (
             sortBy ===
-            "submitted"
+              "submitted" ||
+            sortBy ===
+              "oldest"
           ) {
-            return (
-              new Date(
-                b.submittedAt ||
-                  b.createdAt ||
-                  0
-              ) -
-              new Date(
-                a.submittedAt ||
-                  a.createdAt ||
-                  0
-              )
-            );
+            const difference =
+              getAppliedTime(b) -
+              getAppliedTime(a);
+
+            return sortBy ===
+              "oldest"
+              ? -difference
+              : difference;
           }
 
           return String(
@@ -748,7 +760,160 @@ export default function AdminApplicationsPage() {
       setParticipationFilter("all");
       setStatusFilter("all");
       setEventFilter("all");
-      setSortBy("name");
+      setSortBy("submitted");
+
+    };
+
+  // =====================================================
+  // SELECTION
+  // Only rows visible with the current filters count.
+  // =====================================================
+
+  const selectedVisibleIds =
+    filteredApplications
+      .map((application) =>
+        String(application._id)
+      )
+      .filter((id) =>
+        selectedIds.has(id)
+      );
+
+  const allVisibleSelected =
+    filteredApplications.length > 0 &&
+    selectedVisibleIds.length ===
+      filteredApplications.length;
+
+  const toggleSelected = (id) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      const key = String(id);
+
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(
+      allVisibleSelected
+        ? new Set()
+        : new Set(
+            filteredApplications.map(
+              (application) =>
+                String(application._id)
+            )
+          )
+    );
+  };
+
+  // =====================================================
+  // DELETE (one or many)
+  // =====================================================
+
+  const deleteApplications =
+    async (ids) => {
+
+      if (ids.length === 0) {
+        showWarning(
+          "Select at least one application to delete."
+        );
+        return;
+      }
+
+      const confirmed =
+        await confirmAction({
+          title:
+            ids.length === 1
+              ? "Delete this application?"
+              : `Delete ${ids.length} applications?`,
+          text:
+            "This permanently deletes the application and its photo.",
+          confirmText: "Delete",
+          danger: true,
+        });
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+
+        setDeleting(true);
+
+        const token =
+          await getToken();
+
+        const response =
+          await axios.post(
+            `${API_URL}/api/sports-applications/bulk-delete`,
+            { ids },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        const deletedIds =
+          new Set(
+            (response.data?.deletedIds || []).map(String)
+          );
+
+        setApplications((previous) =>
+          previous.filter(
+            (application) =>
+              !deletedIds.has(
+                String(application._id)
+              )
+          )
+        );
+
+        setSelectedIds((previous) => {
+          const next = new Set(previous);
+          deletedIds.forEach((id) => next.delete(id));
+          return next;
+        });
+
+        const skipped =
+          response.data?.skipped || [];
+
+        if (skipped.length > 0) {
+          showWarning(
+            `${response.data?.message}\n\nNot deleted (they already have results):\n${skipped
+              .map((item) => `• ${item.name} (${item.registerNumber})`)
+              .join("\n")}`,
+            "Partly deleted"
+          );
+        } else {
+          showSuccess(
+            response.data?.message ||
+              "Applications deleted."
+          );
+        }
+
+      } catch (err) {
+
+        console.error(
+          "DELETE APPLICATIONS ERROR:",
+          err
+        );
+
+        showError(
+          err.response?.data?.message ||
+            "Unable to delete applications."
+        );
+
+      } finally {
+
+        setDeleting(false);
+
+      }
 
     };
 
@@ -1138,6 +1303,29 @@ export default function AdminApplicationsPage() {
 
             </div>
 
+            {selectedVisibleIds.length > 0 && (
+
+              <button
+                type="button"
+                onClick={() =>
+                  deleteApplications(
+                    selectedVisibleIds
+                  )
+                }
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+
+                <Trash2
+                  size={16}
+                />
+
+                Delete ({selectedVisibleIds.length})
+
+              </button>
+
+            )}
+
             <button
               type="button"
               onClick={
@@ -1421,6 +1609,14 @@ export default function AdminApplicationsPage() {
               }
               options={[
                 [
+                  "submitted",
+                  "Sort: Newest first",
+                ],
+                [
+                  "oldest",
+                  "Sort: Oldest first",
+                ],
+                [
                   "name",
                   "Sort: Name",
                 ],
@@ -1435,10 +1631,6 @@ export default function AdminApplicationsPage() {
                 [
                   "semester",
                   "Sort: Semester",
-                ],
-                [
-                  "submitted",
-                  "Sort: Submitted",
                 ],
               ]}
             />
@@ -1504,6 +1696,16 @@ export default function AdminApplicationsPage() {
 
                 <tr className="bg-slate-50 border-b border-slate-200">
 
+                  <th className="px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all applications"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 cursor-pointer accent-orange-500"
+                    />
+                  </th>
+
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-slate-500">
                     S.No
                   </th>
@@ -1536,12 +1738,16 @@ export default function AdminApplicationsPage() {
                     Events
                   </th>
 
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">
+                    Applied On
+                  </th>
+
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-slate-500">
                     Status
                   </th>
 
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-slate-500">
-                    View
+                    Actions
                   </th>
 
                 </tr>
@@ -1556,7 +1762,7 @@ export default function AdminApplicationsPage() {
                   <tr>
 
                     <td
-                      colSpan={10}
+                      colSpan={12}
                       className="px-6 py-16 text-center"
                     >
 
@@ -1596,8 +1802,30 @@ export default function AdminApplicationsPage() {
                           key={
                             application._id
                           }
-                          className="border-b border-slate-100 last:border-0 hover:bg-orange-50/40 transition"
+                          className={`border-b border-slate-100 last:border-0 hover:bg-orange-50/40 transition ${
+                            selectedIds.has(String(application._id))
+                              ? "bg-orange-50/60"
+                              : ""
+                          }`}
                         >
+
+                          {/* SELECT */}
+
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${application.name}`}
+                              checked={selectedIds.has(
+                                String(application._id)
+                              )}
+                              onChange={() =>
+                                toggleSelected(
+                                  application._id
+                                )
+                              }
+                              className="h-4 w-4 cursor-pointer accent-orange-500"
+                            />
+                          </td>
 
                           {/* S.NO */}
 
@@ -1718,6 +1946,15 @@ export default function AdminApplicationsPage() {
 
                           </td>
 
+                          {/* APPLIED ON */}
+
+                          <td className="px-4 py-3 whitespace-nowrap text-slate-600">
+                            {formatDateTime(
+                              application.submittedAt ||
+                                application.createdAt
+                            )}
+                          </td>
+
                           {/* STATUS */}
 
                           <td className="px-4 py-3 text-center">
@@ -1730,9 +1967,9 @@ export default function AdminApplicationsPage() {
 
                           </td>
 
-                          {/* VIEW */}
+                          {/* ACTIONS */}
 
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
 
                             <button
                               type="button"
@@ -1749,6 +1986,25 @@ export default function AdminApplicationsPage() {
                               />
 
                               View
+
+                            </button>
+
+                            <button
+                              type="button"
+                              title="Delete"
+                              aria-label={`Delete ${application.name}`}
+                              onClick={() =>
+                                deleteApplications([
+                                  String(application._id),
+                                ])
+                              }
+                              disabled={deleting}
+                              className="ml-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition"
+                            >
+
+                              <Trash2
+                                size={14}
+                              />
 
                             </button>
 
@@ -2230,6 +2486,24 @@ function formatValue(
 /* =========================================================
    DATE
 ========================================================= */
+
+function getAppliedTime(
+  application
+) {
+
+  const time =
+    new Date(
+      application.submittedAt ||
+        application.createdAt ||
+        0
+    ).getTime();
+
+  return Number.isNaN(time)
+    ? 0
+    : time;
+
+}
+
 
 function formatDate(
   value

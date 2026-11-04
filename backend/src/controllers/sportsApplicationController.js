@@ -1,6 +1,9 @@
+import mongoose from "mongoose";
 import SportsApplication from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
+import SportsResult from "../models/SportsResult.js";
+import Certificate from "../models/Certificate.js";
 import escapeRegex from "../utils/escapeRegex.js";
 import sendError from "../utils/sendError.js";
 import {
@@ -1052,30 +1055,94 @@ export const deleteMyApplication = async (
 // DELETE /api/sports-applications/:id
 // ======================================================
 
+// ======================================================
+// HELPER: Delete applications by id
+//
+// Applications already placed in a result are skipped,
+// so a result never points to a deleted student.
+// Their certificates and photos are removed with them.
+// ======================================================
+
+const MAX_BULK_DELETE = 500;
+
+const deleteApplicationsByIds = async (ids) => {
+  const applications = await SportsApplication.find({
+    _id: { $in: ids },
+  })
+    .select("name registerNumber photo")
+    .lean();
+
+  const placedIds = new Set(
+    (
+      await SportsResult.distinct("participants", {
+        participants: {
+          $in: applications.map((item) => item._id),
+        },
+      })
+    ).map(String)
+  );
+
+  const skipped = applications
+    .filter((item) => placedIds.has(String(item._id)))
+    .map((item) => ({
+      _id: item._id,
+      name: item.name,
+      registerNumber: item.registerNumber,
+    }));
+
+  const deletable = applications.filter(
+    (item) => !placedIds.has(String(item._id))
+  );
+
+  const deletedIds = deletable.map((item) => item._id);
+
+  if (deletedIds.length > 0) {
+    await Promise.all([
+      SportsApplication.deleteMany({
+        _id: { $in: deletedIds },
+      }),
+      Certificate.deleteMany({
+        application: { $in: deletedIds },
+      }),
+    ]);
+
+    // Photo clean-up failures must not fail the delete
+    await Promise.allSettled(
+      deletable
+        .map((item) => item.photo?.publicId)
+        .filter(Boolean)
+        .map((publicId) => deleteFromCloudinary(publicId))
+    );
+  }
+
+  return {
+    found: applications.length,
+    deletedIds,
+    skipped,
+  };
+};
+
 export const deleteApplication = async (
   req,
   res
 ) => {
   try {
-    const { id } = req.params;
+    const { found, skipped } =
+      await deleteApplicationsByIds([req.params.id]);
 
-    const application =
-      await SportsApplication.findById(id);
-
-    if (!application) {
+    if (found === 0) {
       return res.status(404).json({
         success: false,
         message: "Application not found.",
       });
     }
 
-    const publicId =
-      application.photo?.publicId;
-
-    await SportsApplication.findByIdAndDelete(id);
-
-    if (publicId) {
-      await deleteFromCloudinary(publicId);
+    if (skipped.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This student already has a result. Remove them from the result first.",
+      });
     }
 
     return res.status(200).json({
@@ -1090,5 +1157,66 @@ export const deleteApplication = async (
     );
 
     return sendError(res, error, "Failed to delete application.");
+  }
+};
+// ======================================================
+// BULK DELETE APPLICATIONS
+// POST /api/sports-applications/bulk-delete
+// Body: { ids: [...] }
+// ======================================================
+
+export const bulkDeleteApplications = async (
+  req,
+  res
+) => {
+  try {
+    const ids = req.body?.ids;
+
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Select at least one application.",
+      });
+    }
+
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({
+        success: false,
+        message: `You can delete at most ${MAX_BULK_DELETE} applications at a time.`,
+      });
+    }
+
+    if (
+      !ids.every((id) =>
+        mongoose.isValidObjectId(id)
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid application ID.",
+      });
+    }
+
+    const uniqueIds = [...new Set(ids.map(String))];
+
+    const { deletedIds, skipped } =
+      await deleteApplicationsByIds(uniqueIds);
+
+    return res.status(200).json({
+      success: true,
+      message: `${deletedIds.length} application(s) deleted.`,
+      deletedIds,
+      skipped,
+    });
+  } catch (error) {
+    console.error(
+      "Bulk delete applications error:",
+      error
+    );
+
+    return sendError(res, error, "Failed to delete applications.");
   }
 };

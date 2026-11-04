@@ -2,11 +2,9 @@ import express from "express";
 
 import {
   getAllResults,
-  getResultsByEvent,
-  saveResult,
-  finalizeEventResults,
-  getResultById,
-  deleteResult,
+  getResultBoard,
+  getEventResultSheet,
+  saveEventResults,
 } from "../controllers/sportsResultController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -16,98 +14,40 @@ import validateObjectId from "../middleware/validateObjectId.js";
 
 const router = express.Router();
 
-router.param("id", validateObjectId);
 router.param("eventId", validateObjectId);
 
+const adminOnly = [
+  authMiddleware,
+  resolveUser,
+  roleMiddleware("admin"),
+];
 
 // ======================================================
 // ALL RESULTS
 // GET /api/sports-results
-// ADMIN ONLY
 // ======================================================
 
-router.get(
-  "/",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  getAllResults
-);
-
+router.get("/", ...adminOnly, getAllResults);
 
 // ======================================================
-// RESULTS FOR ONE EVENT
+// RESULT BOARD (one row per event)
+// GET /api/sports-results/board?meetId=...
+// ======================================================
+
+router.get("/board", ...adminOnly, getResultBoard);
+
+// ======================================================
+// RESULT SHEET FOR ONE EVENT
 // GET /api/sports-results/event/:eventId?meetId=...
-// ADMIN ONLY
 // ======================================================
 
-router.get(
-  "/event/:eventId",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  getResultsByEvent
-);
-
+router.get("/event/:eventId", ...adminOnly, getEventResultSheet);
 
 // ======================================================
-// FINALIZE EVENT
-// POST /api/sports-results/event/:eventId/finalize
-// ADMIN ONLY
+// SAVE ALL PLACES OF ONE EVENT
+// PUT /api/sports-results/event/:eventId
 // ======================================================
 
-router.post(
-  "/event/:eventId/finalize",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  finalizeEventResults
-);
-
-
-// ======================================================
-// SAVE / UPDATE RESULT
-// POST /api/sports-results
-// ADMIN ONLY
-// ======================================================
-
-router.post(
-  "/",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  saveResult
-);
-
-
-// ======================================================
-// GET ONE RESULT
-// GET /api/sports-results/:id
-// ADMIN ONLY
-// ======================================================
-
-router.get(
-  "/:id",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  getResultById
-);
-
-
-// ======================================================
-// DELETE RESULT
-// DELETE /api/sports-results/:id
-// ADMIN ONLY
-// ======================================================
-
-router.delete(
-  "/:id",
-  authMiddleware,
-  resolveUser,
-  roleMiddleware("admin"),
-  deleteResult
-);
-
+router.put("/event/:eventId", ...adminOnly, saveEventResults);
 
 export default router;

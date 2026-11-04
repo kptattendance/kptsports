@@ -11,7 +11,6 @@ import {
   ClipboardList,
   UserCheck,
   Medal,
-  Award,
   UserCog,
   BarChart3,
   ChevronDown,
@@ -82,20 +81,10 @@ const menuGroups = [
         icon: UserCheck,
       },
       {
+        // Results and certificates are on the same page
         label: "Results",
         href: "/admin/results",
         icon: Medal,
-      },
-    ],
-  },
-
-  {
-    title: "CERTIFICATES",
-    items: [
-      {
-        label: "Certificates",
-        href: "/admin/certificates",
-        icon: Award,
       },
     ],
   },

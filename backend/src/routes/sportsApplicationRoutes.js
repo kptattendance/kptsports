@@ -9,6 +9,7 @@ import {
   updateApplication,
   deleteMyApplication,
   deleteApplication,
+  bulkDeleteApplications,
 } from "../controllers/sportsApplicationController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -123,6 +124,19 @@ router.put(
   uploadMiddleware.single("photo"),
   sanitizeBody,
   updateApplication
+);
+
+// Delete many applications
+// POST /api/sports-applications/bulk-delete
+router.post(
+  "/bulk-delete",
+  authMiddleware,
+  resolveUser,
+  roleMiddleware(
+    "admin",
+    "sports_officer"
+  ),
+  bulkDeleteApplications
 );
 
 // Delete application
