@@ -4,3 +4,32 @@
 .swal2-html-container {
   white-space: pre-line;
 }
+
+/* Phones and tablets: wide admin tables scroll sideways,
+   but the Actions column stays pinned to the right edge */
+@media (max-width: 1023px) {
+  .table-sticky-actions th:last-child,
+  .table-sticky-actions td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: #ffffff;
+    box-shadow: -10px 0 10px -10px rgb(15 23 42 / 0.25);
+  }
+
+  .table-sticky-actions thead th:last-child {
+    background-color: #f8fafc;
+  }
+}
+
+/* Phones: no sideways wobble of the whole page */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Form field used by the admin Events form (was never defined).
+   16px text on phones stops iOS zooming into the field. */
+@utility input-style {
+  @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50 sm:text-sm;
+}

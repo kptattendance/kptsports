@@ -1148,7 +1148,7 @@ export default function AdminEventsPage() {
         ) : (
           <div className="overflow-x-auto">
 
-            <table className="min-w-[1150px] w-full">
+            <table className="table-sticky-actions min-w-[1150px] w-full">
 
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70">

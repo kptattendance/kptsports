@@ -23,6 +23,13 @@ const adminOnly = [
   roleMiddleware("admin"),
 ];
 
+// Office staff (sports officers) print certificates too
+const resultStaff = [
+  authMiddleware,
+  resolveUser,
+  roleMiddleware("admin", "sports_officer"),
+];
+
 // =====================================================
 // PRINT CERTIFICATES OF ONE EVENT (one PDF)
 // GET /api/certificates/event/:eventId/print?meetId=&type=
@@ -30,7 +37,7 @@ const adminOnly = [
 
 router.get(
   "/event/:eventId/print",
-  ...adminOnly,
+  ...resultStaff,
   printEventCertificates
 );
 
@@ -60,7 +67,7 @@ router.get(
 
 router.get(
   "/:id/pdf",
-  ...adminOnly,
+  ...resultStaff,
   downloadCertificatePdf
 );
 

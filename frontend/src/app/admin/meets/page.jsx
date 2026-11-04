@@ -565,7 +565,7 @@ export default function MeetsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[950px] w-full">
+              <table className="table-sticky-actions min-w-[950px] w-full">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">

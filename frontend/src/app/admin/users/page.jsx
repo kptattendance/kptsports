@@ -41,7 +41,8 @@ const userRoleOptions = [
   },
   {
     value: "sports_officer",
-    label: "Sports Officer",
+    // Can only enter results and print certificates
+    label: "Sports Officer / Office (Results only)",
   },
   {
     value: "college_coordinator",
@@ -1183,7 +1184,7 @@ const handleDeleteSelected = async () => {
         ) : (
           <div className="overflow-x-auto">
 
-            <table className="w-full min-w-[900px]">
+            <table className="table-sticky-actions w-full min-w-[900px]">
 
               <thead>
                 <tr className="border-b border-orange-100 bg-orange-50/50">

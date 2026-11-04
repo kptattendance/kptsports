@@ -15,6 +15,7 @@ import {
   X,
   ChevronDown,
   Trash2,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   confirmAction,
@@ -99,6 +100,10 @@ export default function AdminApplicationsPage() {
     useState(() => new Set());
 
   const [deleting, setDeleting] =
+    useState(false);
+
+  // Phones: filters fold away behind a button
+  const [showFilters, setShowFilters] =
     useState(false);
 
   // =====================================================
@@ -1213,9 +1218,9 @@ export default function AdminApplicationsPage() {
           HEADER
       ================================================= */}
 
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-orange-100">
+      <header className="bg-white/95 border-b border-orange-100">
 
-        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-5 h-14 sm:h-16 flex items-center justify-between">
 
           <div>
 
@@ -1262,7 +1267,7 @@ export default function AdminApplicationsPage() {
           CONTENT
       ================================================= */}
 
-      <div className="max-w-7xl mx-auto px-5 py-7">
+      <div className="max-w-7xl mx-auto px-4 sm:px-5 py-5 sm:py-7">
 
         {/* =================================================
             TOP
@@ -1282,7 +1287,7 @@ export default function AdminApplicationsPage() {
 
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
 
             <div className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm">
 
@@ -1354,13 +1359,68 @@ export default function AdminApplicationsPage() {
             FILTERS
         ================================================= */}
 
-        <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-4">
+        <div className="mt-5 sm:mt-6 bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {/* PHONES: search + a button that opens the other filters */}
+
+          <div className="flex gap-2 lg:hidden">
+
+            <div className="relative min-w-0 flex-1">
+
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+
+              <input
+                value={search}
+                onChange={(e) =>
+                  setSearch(
+                    e.target.value
+                  )
+                }
+                placeholder="Search name, register no..."
+                className="w-full h-11 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowFilters(
+                  (open) => !open
+                )
+              }
+              aria-expanded={showFilters}
+              className={`h-11 shrink-0 inline-flex items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition ${
+                showFilters
+                  ? "border-orange-300 bg-orange-50 text-orange-600"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+
+              <SlidersHorizontal
+                size={16}
+              />
+
+              Filters
+
+            </button>
+
+          </div>
+
+          <div
+            className={`${
+              showFilters
+                ? "mt-3 grid"
+                : "hidden"
+            } lg:mt-0 lg:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3`}
+          >
 
             {/* SEARCH */}
 
-            <div className="relative xl:col-span-2">
+            <div className="relative hidden lg:block xl:col-span-2">
 
               <Search
                 size={16}
@@ -1683,10 +1743,93 @@ export default function AdminApplicationsPage() {
 
 
         {/* =================================================
-            TABLE
+            PHONES: ONE CARD PER APPLICATION
         ================================================= */}
 
-        <div className="mt-5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="mt-4 lg:hidden">
+
+          {filteredApplications.length > 0 && (
+
+            <label className="mb-2 flex items-center gap-2 px-1 text-sm font-medium text-slate-600">
+
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAll}
+                className="h-5 w-5 accent-orange-500"
+              />
+
+              Select all ({filteredApplications.length})
+
+            </label>
+
+          )}
+
+          {filteredApplications.length === 0 ? (
+
+            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center">
+
+              <Users
+                size={32}
+                className="mx-auto text-slate-300 mb-3"
+              />
+
+              <p className="font-semibold text-slate-600">
+                No applications found
+              </p>
+
+            </div>
+
+          ) : (
+
+            <div className="space-y-3">
+
+              {filteredApplications.map(
+                (application) => (
+
+                  <ApplicationCard
+                    key={application._id}
+                    application={application}
+                    eventCount={
+                      getApplicationEvents(
+                        application
+                      ).length
+                    }
+                    selected={selectedIds.has(
+                      String(application._id)
+                    )}
+                    onToggle={() =>
+                      toggleSelected(
+                        application._id
+                      )
+                    }
+                    onView={() =>
+                      handleView(
+                        application._id
+                      )
+                    }
+                    onDelete={() =>
+                      deleteApplications([
+                        String(application._id),
+                      ])
+                    }
+                    deleting={deleting}
+                  />
+
+                )
+              )}
+
+            </div>
+
+          )}
+
+        </div>
+
+        {/* =================================================
+            TABLE (larger screens)
+        ================================================= */}
+
+        <div className="mt-5 hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
           <div className="overflow-x-auto">
 
@@ -2486,6 +2629,127 @@ function formatValue(
 /* =========================================================
    DATE
 ========================================================= */
+
+/* =========================================================
+   APPLICATION CARD (phones)
+========================================================= */
+
+function ApplicationCard({
+  application,
+  eventCount,
+  selected,
+  onToggle,
+  onView,
+  onDelete,
+  deleting,
+}) {
+
+  const photoUrl =
+    application.photo?.url || "";
+
+  return (
+
+    <div
+      className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
+        selected
+          ? "border-orange-300 ring-2 ring-orange-100"
+          : "border-slate-200"
+      }`}
+    >
+
+      <div className="flex items-start gap-3">
+
+        <input
+          type="checkbox"
+          aria-label={`Select ${application.name}`}
+          checked={selected}
+          onChange={onToggle}
+          className="mt-2.5 h-5 w-5 shrink-0 accent-orange-500"
+        />
+
+        {photoUrl ? (
+
+          <img
+            src={photoUrl}
+            alt={application.name || "Student"}
+            className="h-11 w-11 shrink-0 rounded-full border border-orange-100 object-cover"
+          />
+
+        ) : (
+
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-50 font-bold text-orange-500">
+            {String(application.name || "S")
+              .charAt(0)
+              .toUpperCase()}
+          </div>
+
+        )}
+
+        <div className="min-w-0 flex-1">
+
+          <div className="flex items-start justify-between gap-2">
+
+            <p className="truncate font-semibold text-slate-900">
+              {application.name}
+            </p>
+
+            <StatusBadge
+              status={application.status}
+            />
+
+          </div>
+
+          <p className="text-sm font-semibold text-orange-600">
+            {application.registerNumber}
+          </p>
+
+          <p className="mt-1 text-xs capitalize text-slate-500">
+            College {application.collegeCode} · Sem{" "}
+            {application.semester} · {application.branch} ·{" "}
+            {application.gender}
+          </p>
+
+          <p className="mt-0.5 text-xs text-slate-400">
+            {eventCount} event{eventCount === 1 ? "" : "s"} · Applied{" "}
+            {formatDateTime(
+              application.submittedAt ||
+                application.createdAt
+            )}
+          </p>
+
+        </div>
+
+      </div>
+
+      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+
+        <button
+          type="button"
+          onClick={onView}
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600"
+        >
+          <Eye size={16} />
+          View
+        </button>
+
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          aria-label={`Delete ${application.name}`}
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+        >
+          <Trash2 size={16} />
+        </button>
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
 
 function getAppliedTime(
   application

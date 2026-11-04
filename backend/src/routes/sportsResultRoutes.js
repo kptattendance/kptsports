@@ -22,6 +22,13 @@ const adminOnly = [
   roleMiddleware("admin"),
 ];
 
+// Office staff (sports officers) enter results too
+const resultStaff = [
+  authMiddleware,
+  resolveUser,
+  roleMiddleware("admin", "sports_officer"),
+];
+
 // ======================================================
 // ALL RESULTS
 // GET /api/sports-results
@@ -34,20 +41,20 @@ router.get("/", ...adminOnly, getAllResults);
 // GET /api/sports-results/board?meetId=...
 // ======================================================
 
-router.get("/board", ...adminOnly, getResultBoard);
+router.get("/board", ...resultStaff, getResultBoard);
 
 // ======================================================
 // RESULT SHEET FOR ONE EVENT
 // GET /api/sports-results/event/:eventId?meetId=...
 // ======================================================
 
-router.get("/event/:eventId", ...adminOnly, getEventResultSheet);
+router.get("/event/:eventId", ...resultStaff, getEventResultSheet);
 
 // ======================================================
 // SAVE ALL PLACES OF ONE EVENT
 // PUT /api/sports-results/event/:eventId
 // ======================================================
 
-router.put("/event/:eventId", ...adminOnly, saveEventResults);
+router.put("/event/:eventId", ...resultStaff, saveEventResults);
 
 export default router;

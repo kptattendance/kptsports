@@ -866,7 +866,7 @@ setInstitutions(sortedInstitutions);
         ) : (
           <div className="overflow-x-auto">
 
-            <table className="w-full min-w-[1000px]">
+            <table className="table-sticky-actions w-full min-w-[1000px]">
 
               <thead>
 

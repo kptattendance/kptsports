@@ -123,19 +123,35 @@ export default function AdminSidebar() {
     setMobileOpen(false);
   };
 
+  const currentItem = menuGroups
+    .flatMap((group) => group.items)
+    .find((item) => isActive(item.href));
+
   return (
     <>
       {/* ================================================= */}
-      {/* MOBILE MENU BUTTON */}
+      {/* MOBILE MENU BAR                                   */}
+      {/* Sits in the page flow under the navbar, so it     */}
+      {/* never covers page content.                        */}
       {/* ================================================= */}
 
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-20 z-40 flex h-10 w-10 items-center justify-center rounded-xl border border-orange-100 bg-white text-slate-700 shadow-sm lg:hidden"
-        aria-label="Open admin menu"
-      >
-        <Menu size={20} />
-      </button>
+      <div className="sticky top-16 z-30 flex items-center gap-3 border-b border-orange-100 bg-white/95 px-4 py-2 backdrop-blur lg:hidden">
+
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex h-10 items-center gap-2 rounded-xl border border-orange-100 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm"
+          aria-label="Open admin menu"
+        >
+          <Menu size={18} />
+          Menu
+        </button>
+
+        <span className="truncate text-sm font-semibold text-slate-500">
+          {currentItem?.label || "Admin"}
+        </span>
+
+      </div>
 
       {/* ================================================= */}
       {/* MOBILE OVERLAY */}
@@ -144,22 +160,24 @@ export default function AdminSidebar() {
       {mobileOpen && (
         <div
           onClick={closeMobile}
-          className="fixed inset-0 z-40 bg-slate-900/30 lg:hidden"
+          className="fixed inset-0 z-[60] bg-slate-900/30 lg:hidden"
         />
       )}
 
       {/* ================================================= */}
-      {/* SIDEBAR */}
+      {/* SIDEBAR                                           */}
+      {/* Mobile: drawer over everything.                   */}
+      {/* Desktop: fixed column below the navbar.           */}
       {/* ================================================= */}
 
       <aside
         className={`
-          fixed left-0 top-0 z-50
-          flex h-screen w-72 flex-col
+          fixed left-0 top-0 z-[70]
+          flex h-dvh w-72 max-w-[85vw] flex-col
           border-r border-orange-100
           bg-white
           transition-transform duration-300
-          lg:translate-x-0
+          lg:top-16 lg:z-40 lg:h-[calc(100vh-4rem)] lg:max-w-none lg:translate-x-0
           ${
             mobileOpen
               ? "translate-x-0"
@@ -168,7 +186,24 @@ export default function AdminSidebar() {
         `}
       >
 
-      
+        {/* MOBILE DRAWER HEADER */}
+
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 lg:hidden">
+
+          <span className="text-sm font-bold text-slate-900">
+            Admin Menu
+          </span>
+
+          <button
+            type="button"
+            onClick={closeMobile}
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            aria-label="Close admin menu"
+          >
+            <X size={18} />
+          </button>
+
+        </div>
 
         {/* ================================================= */}
         {/* ADMIN PROFILE */}
