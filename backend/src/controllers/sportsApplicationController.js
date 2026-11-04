@@ -1060,6 +1060,8 @@ export const deleteMyApplication = async (
 //
 // Applications already placed in a result are skipped,
 // so a result never points to a deleted student.
+// Results left over from a deleted sports meet do not
+// count: nobody can see them, so they are removed too.
 // Their certificates and photos are removed with them.
 // ======================================================
 
@@ -1072,9 +1074,12 @@ const deleteApplicationsByIds = async (ids) => {
     .select("name registerNumber photo")
     .lean();
 
+  const existingMeetIds = await SportsMeet.distinct("_id");
+
   const placedIds = new Set(
     (
       await SportsResult.distinct("participants", {
+        meet: { $in: existingMeetIds },
         participants: {
           $in: applications.map((item) => item._id),
         },
@@ -1103,6 +1108,10 @@ const deleteApplicationsByIds = async (ids) => {
       }),
       Certificate.deleteMany({
         application: { $in: deletedIds },
+      }),
+      SportsResult.deleteMany({
+        meet: { $nin: existingMeetIds },
+        participants: { $in: deletedIds },
       }),
     ]);
 
