@@ -10,6 +10,7 @@ import {
   deleteMyApplication,
   deleteApplication,
   bulkDeleteApplications,
+  applicationsReportPdf,
 } from "../controllers/sportsApplicationController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -124,6 +125,19 @@ router.put(
   uploadMiddleware.single("photo"),
   sanitizeBody,
   updateApplication
+);
+
+// PDF of the applications shown on the page
+// POST /api/sports-applications/report-pdf
+router.post(
+  "/report-pdf",
+  authMiddleware,
+  resolveUser,
+  roleMiddleware(
+    "admin",
+    "sports_officer"
+  ),
+  applicationsReportPdf
 );
 
 // Delete many applications

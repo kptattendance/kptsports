@@ -5,6 +5,7 @@ import SportsApplication from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Certificate from "../models/Certificate.js";
 import sendError from "../utils/sendError.js";
+import generateTablePdf from "../utils/generateTablePdf.js";
 
 const EVENT_FIELDS =
   "code name category gender participationCategory eventType teamSize isActive displayOrder";
@@ -279,5 +280,110 @@ export const saveEventAttendance = async (req, res) => {
     console.error("SAVE ATTENDANCE ERROR:", error);
 
     return sendError(res, error, "Failed to save attendance.");
+  }
+};
+
+// ======================================================
+// PARTICIPANT LIST PDF FOR ONE EVENT
+// GET /api/attendance/event/:eventId/list?meetId=
+//
+// Everyone registered for the event, with their
+// attendance (if taken) and a column for signatures.
+// ======================================================
+
+export const getEventParticipantListPdf = async (req, res) => {
+  try {
+    const [meet, event] = await Promise.all([
+      findMeet(req.query.meetId),
+      Event.findById(req.params.eventId).select(EVENT_FIELDS).lean(),
+    ]);
+
+    if (!meet || !event) {
+      return res.status(404).json({
+        success: false,
+        message: !meet ? "Sports meet not found." : "Event not found.",
+      });
+    }
+
+    const [participants, records] = await Promise.all([
+      SportsApplication.find({
+        meet: meet._id,
+        selectedEvents: event._id,
+        status: notRejected,
+      })
+        .select(PARTICIPANT_FIELDS)
+        .sort({ collegeCode: 1, name: 1 })
+        .lean(),
+
+      Attendance.find({ meet: meet._id, event: event._id })
+        .select("application present")
+        .lean(),
+    ]);
+
+    const presentById = new Map(
+      records.map((record) => [String(record.application), record.present])
+    );
+
+    const taken = records.length > 0;
+    const presentCount = records.filter((record) => record.present).length;
+
+    const gender =
+      event.gender.charAt(0).toUpperCase() + event.gender.slice(1);
+
+    const pdf = await generateTablePdf({
+      title: "Event Participant List",
+      // room to sign
+      minRowHeight: 26,
+      subtitle: [
+        `${meet.name}${meet.year ? ` (${meet.year})` : ""}`,
+        `${event.name} (${event.code}) · ${gender}${
+          event.participationCategory === "physically_challenged"
+            ? " · Physically challenged"
+            : ""
+        }`,
+        `${participants.length} registered${
+          taken
+            ? ` · ${presentCount} present · ${participants.length - presentCount} absent`
+            : " · attendance not taken yet"
+        }`,
+      ],
+      columns: [
+        { header: "#", width: 0.5, align: "center" },
+        { header: "Name", width: 3 },
+        { header: "Register No", width: 1.8 },
+        { header: "College", width: 1, align: "center" },
+        { header: "Sem / Branch", width: 1.4 },
+        { header: "Attendance", width: 1.3, align: "center" },
+        { header: "Signature", width: 2 },
+      ],
+      rows: participants.map((student, index) => {
+        const present = presentById.get(String(student._id));
+
+        return [
+          index + 1,
+          student.name,
+          student.registerNumber,
+          student.collegeCode,
+          `${student.semester || "-"} / ${student.branch || "-"}`,
+          present === undefined ? "" : present ? "Present" : "Absent",
+          "",
+        ];
+      }),
+    });
+
+    const filename = `${event.code}_participants.pdf`.replace(
+      /[^a-zA-Z0-9_.-]+/g,
+      "_"
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    res.setHeader("Content-Length", pdf.length);
+
+    return res.send(pdf);
+  } catch (error) {
+    console.error("PARTICIPANT LIST PDF ERROR:", error);
+
+    return sendError(res, error, "Failed to create the participant list.");
   }
 };

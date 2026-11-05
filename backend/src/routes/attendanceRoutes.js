@@ -4,6 +4,7 @@ import {
   getAttendanceBoard,
   getEventAttendance,
   saveEventAttendance,
+  getEventParticipantListPdf,
 } from "../controllers/attendanceController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -46,5 +47,16 @@ router.get("/event/:eventId", ...attendanceStaff, getEventAttendance);
 // ======================================================
 
 router.put("/event/:eventId", ...attendanceStaff, saveEventAttendance);
+
+// ======================================================
+// PARTICIPANT LIST PDF FOR ONE EVENT
+// GET /api/attendance/event/:eventId/list?meetId=...
+// ======================================================
+
+router.get(
+  "/event/:eventId/list",
+  ...attendanceStaff,
+  getEventParticipantListPdf
+);
 
 export default router;

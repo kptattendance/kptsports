@@ -8,6 +8,7 @@ import {
   Circle,
   ClipboardCheck,
   Clock,
+  FileText,
   Loader2,
   Pencil,
   RefreshCw,
@@ -27,7 +28,9 @@ import {
   SummaryCard,
   formatDateTime,
   getErrorMessage,
+  openPdfWindow,
   pickDefaultMeet,
+  showPdf,
   toLabel,
 } from "./boardParts";
 
@@ -59,6 +62,9 @@ export default function AttendanceBoard() {
 
   // Board row whose attendance is being taken
   const [editing, setEditing] = useState(null);
+
+  // Event whose participant list PDF is being made
+  const [listing, setListing] = useState("");
 
   // ===================================================
   // FILTERS
@@ -179,6 +185,38 @@ export default function AttendanceBoard() {
   const refresh = () => {
     setLoading(true);
     reloadBoard();
+  };
+
+  // ===================================================
+  // PARTICIPANT LIST PDF
+  // Who registered for the event (+ attendance, if taken)
+  // ===================================================
+
+  const printList = async (event) => {
+    const pdfWindow = openPdfWindow("Preparing participant list...");
+
+    try {
+      setListing(event._id);
+
+      const response = await axios.get(
+        `${API_URL}/api/attendance/event/${event._id}/list`,
+        {
+          params: { meetId },
+          headers: await authHeaders(),
+          responseType: "blob",
+        }
+      );
+
+      showPdf(pdfWindow, response.data, `${event.code}-participants.pdf`);
+    } catch (err) {
+      pdfWindow?.close();
+
+      showError(
+        await getErrorMessage(err, "Unable to create the participant list.")
+      );
+    } finally {
+      setListing("");
+    }
   };
 
   const changeMeet = (value) => {
@@ -554,10 +592,17 @@ export default function AttendanceBoard() {
                   </p>
                 )}
 
-                <div className="mt-3">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <AttendanceAction
                     row={row}
                     onOpen={() => setEditing(row)}
+                    large
+                  />
+
+                  <ListButton
+                    busy={listing === row.event._id}
+                    disabled={Boolean(listing) || row.participantCount === 0}
+                    onClick={() => printList(row.event)}
                     large
                   />
                 </div>
@@ -623,11 +668,19 @@ export default function AttendanceBoard() {
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-center">
-                      <AttendanceAction
-                        row={row}
-                        onOpen={() => setEditing(row)}
-                      />
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-stretch gap-1.5">
+                        <AttendanceAction
+                          row={row}
+                          onOpen={() => setEditing(row)}
+                        />
+
+                        <ListButton
+                          busy={listing === row.event._id}
+                          disabled={Boolean(listing) || row.participantCount === 0}
+                          onClick={() => printList(row.event)}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -647,6 +700,7 @@ export default function AttendanceBoard() {
           meetId={meetId}
           authHeaders={authHeaders}
           onClose={closeSheet}
+          onPrintList={() => printList(editing.event)}
           onSaved={() => {
             setEditing(null);
             reloadBoard();
@@ -673,6 +727,27 @@ function AttendanceStatus({ row }) {
       <Clock size={12} />
       Pending
     </span>
+  );
+}
+
+function ListButton({ busy, disabled, onClick, large = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title="Participant list (PDF)"
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-600 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40 ${
+        large ? "w-full px-3 py-3 text-sm" : "px-3 py-2 text-xs"
+      }`}
+    >
+      {busy ? (
+        <Loader2 size={15} className="animate-spin" />
+      ) : (
+        <FileText size={15} />
+      )}
+      Participant List
+    </button>
   );
 }
 
@@ -714,6 +789,7 @@ function AttendanceSheet({
   authHeaders,
   onClose,
   onSaved,
+  onPrintList,
 }) {
   const { event } = row;
 
@@ -856,15 +932,28 @@ function AttendanceSheet({
             <EventMeta event={event} />
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="Close"
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onPrintList}
+              disabled={loading || students.length === 0}
+              title="Participant list (PDF)"
+              aria-label="Participant list (PDF)"
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-orange-50 hover:text-orange-600 disabled:opacity-40"
+            >
+              <FileText size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              aria-label="Close"
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
         </div>
 

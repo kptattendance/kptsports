@@ -29,7 +29,9 @@ import {
   formatDateTime,
   getErrorMessage,
   getTeamSize,
+  openPdfWindow,
   pickDefaultMeet,
+  showPdf,
   toLabel,
 } from "./boardParts";
 
@@ -69,19 +71,9 @@ const MEASURED_RESULT_TYPES = [
 // HELPERS
 // =====================================================
 
-// Must be called straight from a click, before any
-// await, or the browser blocks the new tab.
-const openPrintWindow = () => {
-  const printWindow = window.open("", "_blank");
-
-  if (printWindow) {
-    printWindow.document.title = "Preparing certificates...";
-    printWindow.document.body.innerHTML =
-      '<p style="font-family:sans-serif;padding:24px;color:#475569">Preparing certificates, please wait...</p>';
-  }
-
-  return printWindow;
-};
+// Must be called straight from a click, before any await
+const openPrintWindow = () =>
+  openPdfWindow("Preparing certificates, please wait...");
 
 // =====================================================
 // PAGE
@@ -261,21 +253,7 @@ export default function ResultsBoard() {
         }
       );
 
-      const url = URL.createObjectURL(
-        new Blob([response.data], { type: "application/pdf" })
-      );
-
-      if (target && !target.closed) {
-        target.location.href = url;
-      } else {
-        // New tab was blocked: download the file instead
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${type}-certificates.pdf`;
-        link.click();
-      }
-
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      showPdf(target, response.data, `${type}-certificates.pdf`);
     } catch (err) {
       target?.close();
 

@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Trash2,
   SlidersHorizontal,
+  FileText,
 } from "lucide-react";
 import {
   confirmAction,
@@ -24,6 +25,10 @@ import {
   showWarning,
   useAlertMessages,
 } from "@/app/lib/alerts";
+import {
+  openPdfWindow,
+  showPdf,
+} from "../../components/boardParts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL;
@@ -985,6 +990,87 @@ export default function AdminApplicationsPage() {
     };
 
   // =====================================================
+  // PDF DOWNLOAD
+  // Same rows, same order as on screen.
+  // =====================================================
+
+  const [makingPdf, setMakingPdf] =
+    useState(false);
+
+  const downloadPdf =
+    async () => {
+
+      if (
+        filteredApplications.length ===
+        0
+      ) {
+        showWarning(
+          "No applications to download."
+        );
+        return;
+      }
+
+      // Opened now (inside the click) so it is not blocked
+      const pdfWindow =
+        openPdfWindow(
+          "Preparing PDF..."
+        );
+
+      try {
+
+        setMakingPdf(true);
+
+        const token =
+          await getToken();
+
+        const response =
+          await axios.post(
+            `${API_URL}/api/sports-applications/report-pdf`,
+            {
+              ids: filteredApplications.map(
+                (application) =>
+                  String(application._id)
+              ),
+              title:
+                "Student Applications",
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+              responseType: "blob",
+            }
+          );
+
+        showPdf(
+          pdfWindow,
+          response.data,
+          "applications.pdf"
+        );
+
+      } catch (err) {
+
+        pdfWindow?.close();
+
+        console.error(
+          "APPLICATIONS PDF ERROR:",
+          err
+        );
+
+        showError(
+          "Unable to create the PDF."
+        );
+
+      } finally {
+
+        setMakingPdf(false);
+
+      }
+
+    };
+
+  // =====================================================
   // EXCEL DOWNLOAD
   // =====================================================
 
@@ -1348,6 +1434,34 @@ export default function AdminApplicationsPage() {
               />
 
               Excel
+
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                downloadPdf
+              }
+              disabled={
+                makingPdf ||
+                filteredApplications.length ===
+                  0
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-white px-4 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+
+              {makingPdf ? (
+                <RefreshCw
+                  size={16}
+                  className="animate-spin"
+                />
+              ) : (
+                <FileText
+                  size={16}
+                />
+              )}
+
+              PDF
 
             </button>
 

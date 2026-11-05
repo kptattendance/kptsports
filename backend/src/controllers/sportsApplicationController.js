@@ -7,6 +7,7 @@ import Certificate from "../models/Certificate.js";
 import Attendance from "../models/Attendance.js";
 import escapeRegex from "../utils/escapeRegex.js";
 import sendError from "../utils/sendError.js";
+import generateTablePdf from "../utils/generateTablePdf.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -1231,5 +1232,117 @@ export const bulkDeleteApplications = async (
     );
 
     return sendError(res, error, "Failed to delete applications.");
+  }
+};
+
+// ======================================================
+// APPLICATIONS LIST PDF
+// POST /api/sports-applications/report-pdf
+// Body: { ids: [...], title }
+//
+// The page sends the ids it is showing (already filtered
+// and sorted), so the PDF matches the screen.
+// ======================================================
+
+const MAX_REPORT_ROWS = 3000;
+
+export const applicationsReportPdf = async (
+  req,
+  res
+) => {
+  try {
+    const ids = req.body?.ids;
+
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > MAX_REPORT_ROWS ||
+      !ids.every((id) => mongoose.isValidObjectId(id))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Select between 1 and ${MAX_REPORT_ROWS} applications.`,
+      });
+    }
+
+    const applications = await SportsApplication.find({
+      _id: { $in: ids },
+    })
+      .populate("selectedEvents", "code")
+      .populate("meet", "name year")
+      .lean();
+
+    const byId = new Map(
+      applications.map((item) => [String(item._id), item])
+    );
+
+    // Keep the order the page showed
+    const ordered = ids
+      .map((id) => byId.get(String(id)))
+      .filter(Boolean);
+
+    const meetNames = [
+      ...new Set(
+        ordered.map((item) => item.meet?.name).filter(Boolean)
+      ),
+    ];
+
+    const title =
+      String(req.body?.title || "Student Applications").slice(0, 80);
+
+    const capitalize = (value) =>
+      value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+
+    const pdf = await generateTablePdf({
+      title,
+      subtitle: [
+        meetNames.join(", "),
+        `${ordered.length} application(s)`,
+      ],
+      landscape: true,
+      columns: [
+        { header: "#", width: 0.45, align: "center" },
+        { header: "Name", width: 2.2 },
+        { header: "Register No", width: 1.4 },
+        { header: "College", width: 0.8, align: "center" },
+        { header: "Sem", width: 0.5, align: "center" },
+        { header: "Branch", width: 0.8 },
+        { header: "Gender", width: 0.8 },
+        { header: "Phone", width: 1.2 },
+        { header: "Events", width: 3 },
+        { header: "Status", width: 1 },
+      ],
+      rows: ordered.map((item, index) => [
+        index + 1,
+        item.name,
+        item.registerNumber,
+        item.collegeCode,
+        item.semester,
+        item.branch,
+        capitalize(item.gender),
+        item.phone || "",
+        (item.selectedEvents || [])
+          .map((event) => event?.code)
+          .filter(Boolean)
+          .join(", "),
+        capitalize(item.status),
+      ]),
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      'inline; filename="applications.pdf"'
+    );
+    res.setHeader("Content-Length", pdf.length);
+
+    return res.send(pdf);
+  } catch (error) {
+    console.error(
+      "Applications report PDF error:",
+      error
+    );
+
+    return sendError(res, error, "Failed to create the PDF.");
   }
 };
