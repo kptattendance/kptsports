@@ -1,5 +1,7 @@
 "use client";
 
+import { showSuccess } from "@/app/lib/alerts";
+
 // =====================================================
 // PIECES SHARED BY THE RESULTS AND ATTENDANCE BOARDS
 // =====================================================
@@ -138,13 +140,26 @@ export function FilterSelect({ value, onChange, options }) {
 }
 
 // =====================================================
-// PDF IN A NEW TAB
+// PDF: NEW TAB ON COMPUTERS, LOCAL FILE ON PHONES
+//
 // openPdfWindow() must be called straight from a click,
 // before any await, or the browser blocks the new tab.
 // Then showPdf() puts the downloaded PDF in that tab.
+//
+// Phones without a built-in PDF viewer (Android) would
+// hand a tab over to Google Drive, so there the PDF is
+// saved to Downloads instead, ready to open or share.
 // =====================================================
 
+const canShowPdfInTab = () =>
+  navigator.pdfViewerEnabled ??
+  !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+
 export const openPdfWindow = (message = "Preparing PDF...") => {
+  if (!canShowPdfInTab()) {
+    return null;
+  }
+
   const pdfWindow = window.open("", "_blank");
 
   if (pdfWindow) {
@@ -168,11 +183,17 @@ export const showPdf = (pdfWindow, data, filename) => {
   if (pdfWindow && !pdfWindow.closed) {
     pdfWindow.location.href = url;
   } else {
-    // New tab was blocked: download the file instead
+    // Phone, or the new tab was blocked: save the file
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+
+    if (!canShowPdfInTab()) {
+      showSuccess(`${filename} saved to Downloads.`, "PDF saved");
+    }
   }
 
   setTimeout(() => URL.revokeObjectURL(url), 60000);

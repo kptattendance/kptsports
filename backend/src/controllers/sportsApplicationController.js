@@ -1295,8 +1295,8 @@ export const applicationsReportPdf = async (
 
     const pdf = await generateTablePdf({
       title,
+      meetName: meetNames.join(", "),
       subtitle: [
-        meetNames.join(", "),
         `${ordered.length} application(s)`,
       ],
       landscape: true,

@@ -239,7 +239,9 @@ export default function ResultsBoard() {
     applicationId,
     printWindow,
   }) => {
-    const target = printWindow || openPrintWindow();
+    // The entry form passes the tab it opened (or null on phones)
+    const target =
+      printWindow === undefined ? openPrintWindow() : printWindow;
 
     try {
       setPrinting(`${eventId}-${type}-${applicationId || "all"}`);
@@ -1198,9 +1200,11 @@ function ResultEntryModal({
       return;
     }
 
-    // Opened now (inside the click) so it is not blocked
-    const printWindow =
-      print && hasWinner ? openPrintWindow() : null;
+    const shouldPrint = print && hasWinner;
+
+    // Opened now (inside the click) so it is not blocked.
+    // On phones there is no tab: the PDF is saved instead.
+    const printWindow = shouldPrint ? openPrintWindow() : null;
 
     try {
       setSaving(true);
@@ -1211,7 +1215,7 @@ function ResultEntryModal({
         { headers: await authHeaders() }
       );
 
-      if (printWindow) {
+      if (shouldPrint) {
         await onPrint({
           eventId: event._id,
           type: "winner",

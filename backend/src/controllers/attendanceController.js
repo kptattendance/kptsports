@@ -334,13 +334,20 @@ export const getEventParticipantListPdf = async (req, res) => {
       title: "Event Participant List",
       // room to sign
       minRowHeight: 26,
-      subtitle: [
-        `${meet.name}${meet.year ? ` (${meet.year})` : ""}`,
-        `${event.name} (${event.code}) · ${gender}${
+      meetName: `${meet.name}${meet.year ? ` (${meet.year})` : ""}`,
+      highlight: {
+        text: event.name,
+        detail: `${event.code} · ${gender}${
           event.participationCategory === "physically_challenged"
             ? " · Physically challenged"
             : ""
+        }${
+          event.eventType === "team" && event.teamSize
+            ? ` · Team of ${event.teamSize}`
+            : ""
         }`,
+      },
+      subtitle: [
         `${participants.length} registered${
           taken
             ? ` · ${presentCount} present · ${participants.length - presentCount} absent`

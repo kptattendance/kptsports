@@ -1,56 +1,12 @@
 import PDFDocument from "pdfkit";
-
-// =====================================================
-// DOWNLOAD IMAGE FROM URL
-//
-// Only Cloudinary images are fetched. Cloudinary is
-// asked for JPEG, because PDFKit cannot embed WEBP/HEIC.
-// Returns null when the image is not available.
-// =====================================================
-
-const CLOUDINARY_HOST = "https://res.cloudinary.com/";
-
-const downloadImage = async (
-  url,
-  imageName = "image"
-) => {
-  try {
-    if (
-      !url ||
-      !url.startsWith(CLOUDINARY_HOST) ||
-      !url.includes("/upload/")
-    ) {
-      console.error(
-        `${imageName}: missing or unsupported URL`
-      );
-
-      return null;
-    }
-
-    const response = await fetch(
-      url.replace("/upload/", "/upload/f_jpg/")
-    );
-
-    if (!response.ok) {
-      console.error(
-        `${imageName}: download failed (${response.status})`
-      );
-
-      return null;
-    }
-
-    return Buffer.from(
-      await response.arrayBuffer()
-    );
-  } catch (error) {
-    console.error(
-      `${imageName}: download error:`,
-      error.message
-    );
-
-    return null;
-  }
-};
+import {
+  CLOUDINARY_HOST,
+  COLLEGE_WATERMARK_URL,
+  LOGO3_URL,
+  LOGO4_URL,
+  LOGO5_URL,
+  downloadImage,
+} from "./brandImages.js";
 
 // =====================================================
 // CREATE CLOUDINARY JPG URL
@@ -70,18 +26,6 @@ const createCloudinaryJpgUrl = (
 // SHARED IMAGES (logos + watermark)
 // Downloaded once per PDF, even when it holds many pages.
 // =====================================================
-
-const COLLEGE_WATERMARK_URL =
-  "https://res.cloudinary.com/tszalf5h/image/upload/v1790564455/clgimg1.jpg";
-
-const LOGO3_URL =
-  "https://res.cloudinary.com/dnreqxbdw/image/upload/v1757932916/logo3_vptob4.jpg";
-
-const LOGO4_URL =
-  "https://res.cloudinary.com/dnreqxbdw/image/upload/v1757932915/logo4_q0ujtn.png";
-
-const LOGO5_URL =
-  "https://res.cloudinary.com/dnreqxbdw/image/upload/v1757932915/logo5_czeuoz.png";
 
 const loadSharedImages = async () => {
   const [

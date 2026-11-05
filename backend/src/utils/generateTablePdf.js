@@ -1,22 +1,29 @@
 import PDFDocument from "pdfkit";
+import { loadHeaderLogos } from "./brandImages.js";
 
 // =====================================================
 // GENERATE A TABLE PDF (lists and reports)
 //
-// generateTablePdf({
-//   title: "Participant List",
-//   subtitle: ["KPT Sports Meet 2026", "100 Mtrs. Run (M100)"],
+// await generateTablePdf({
+//   title: "Event Participant List",
+//   meetName: "KPT Annual Sports Meet 2026-27",
+//   highlight: { text: "100 Mtrs. Run", detail: "M100 · Male" },
+//   subtitle: ["13 registered"],
 //   columns: [{ header: "Name", width: 2, align: "left" }, ...],
 //   rows: [["Vishma", ...], ...],
 //   landscape: false,
 //   minRowHeight: 0,   // e.g. room for a signature
 // })
 //
+// The heading is centred between the college logos.
 // Column widths are relative weights. Long text wraps
-// inside its cell; the heading row repeats on every page.
+// inside its cell; the table heading repeats on every page.
 // =====================================================
 
 const ORANGE = "#F97316";
+const ORANGE_DARK = "#9A3412";
+const ORANGE_SOFT = "#FFF7ED";
+const NAVY = "#142B4A";
 const DARK = "#0F172A";
 const MUTED = "#64748B";
 const LINE = "#E2E8F0";
@@ -26,16 +33,22 @@ const MARGIN = 36;
 const CELL_PADDING = 5;
 const FONT_SIZE = 9;
 
-const generateTablePdf = ({
+const LOGO_SIZE = 58;
+
+const generateTablePdf = async ({
   title,
+  meetName = "",
+  highlight = null,
   subtitle = [],
   columns,
   rows,
   landscape = false,
   footerNote = "",
   minRowHeight = 0,
-}) =>
-  new Promise((resolve, reject) => {
+}) => {
+  const logos = await loadHeaderLogos();
+
+  return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: "A4",
@@ -67,29 +80,128 @@ const generateTablePdf = ({
       const bottomLimit = () => doc.page.height - MARGIN - 18;
 
       // ---------------------------------------------
-      // TITLE BLOCK (first page only)
+      // HEADING (first page only)
+      // College logo | emblem + college name | logo
       // ---------------------------------------------
 
-      doc
-        .fillColor(ORANGE)
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .text("KARNATAKA (GOVT.) POLYTECHNIC, MANGALORE", MARGIN, MARGIN);
+      const drawLogo = (image, x, y, size) => {
+        if (!image) {
+          return;
+        }
+
+        try {
+          doc.image(image, x, y, {
+            fit: [size, size],
+            align: "center",
+            valign: "center",
+          });
+        } catch (error) {
+          console.error("List PDF logo error:", error.message);
+        }
+      };
+
+      const top = MARGIN;
+      const centreX = MARGIN + LOGO_SIZE + 10;
+      const centreWidth = tableWidth - (LOGO_SIZE + 10) * 2;
+
+      drawLogo(logos.left, MARGIN, top, LOGO_SIZE);
+      drawLogo(logos.right, MARGIN + tableWidth - LOGO_SIZE, top, LOGO_SIZE);
+      drawLogo(logos.emblem, MARGIN + tableWidth / 2 - 13, top - 4, 26);
 
       doc
-        .moveDown(0.3)
+        .fillColor(NAVY)
+        .font("Helvetica-Bold")
+        .fontSize(13)
+        .text("KARNATAKA (GOVT.) POLYTECHNIC, MANGALORE", centreX, top + 26, {
+          width: centreWidth,
+          align: "center",
+        });
+
+      if (meetName) {
+        doc
+          .moveDown(0.2)
+          .fillColor(MUTED)
+          .font("Helvetica")
+          .fontSize(10)
+          .text(meetName, centreX, doc.y, {
+            width: centreWidth,
+            align: "center",
+          });
+      }
+
+      // Divider under the heading
+      const dividerY = Math.max(doc.y, top + LOGO_SIZE) + 8;
+
+      doc
+        .moveTo(MARGIN, dividerY)
+        .lineTo(MARGIN + tableWidth, dividerY)
+        .lineWidth(1.5)
+        .strokeColor(ORANGE)
+        .stroke();
+
+      doc
         .fillColor(DARK)
         .font("Helvetica-Bold")
-        .fontSize(16)
-        .text(title);
+        .fontSize(12)
+        .text(String(title).toUpperCase(), MARGIN, dividerY + 10, {
+          width: tableWidth,
+          align: "center",
+          characterSpacing: 1,
+        });
+
+      // ---------------------------------------------
+      // HIGHLIGHT BAND (e.g. the event name)
+      // ---------------------------------------------
+
+      if (highlight?.text) {
+        const bandTop = doc.y + 8;
+
+        doc.font("Helvetica-Bold").fontSize(17);
+        const textHeight = doc.heightOfString(highlight.text, {
+          width: tableWidth - 24,
+        });
+
+        const bandHeight =
+          textHeight + (highlight.detail ? 30 : 16);
+
+        doc
+          .roundedRect(MARGIN, bandTop, tableWidth, bandHeight, 6)
+          .fillAndStroke(ORANGE_SOFT, ORANGE);
+
+        doc
+          .fillColor(ORANGE_DARK)
+          .font("Helvetica-Bold")
+          .fontSize(17)
+          .text(highlight.text, MARGIN + 12, bandTop + 8, {
+            width: tableWidth - 24,
+            align: "center",
+          });
+
+        if (highlight.detail) {
+          doc
+            .fillColor(DARK)
+            .font("Helvetica")
+            .fontSize(10)
+            .text(highlight.detail, MARGIN + 12, doc.y + 2, {
+              width: tableWidth - 24,
+              align: "center",
+            });
+        }
+
+        doc.y = bandTop + bandHeight;
+      }
 
       doc.font("Helvetica").fontSize(10).fillColor(MUTED);
 
       for (const line of subtitle.filter(Boolean)) {
-        doc.moveDown(0.15).text(line);
+        doc.moveDown(0.4).text(line, MARGIN, doc.y, {
+          width: tableWidth,
+          align: "center",
+        });
       }
 
-      doc.moveDown(0.8);
+      doc.x = MARGIN;
+      doc.moveDown(1);
 
       // ---------------------------------------------
       // TABLE
@@ -223,5 +335,6 @@ const generateTablePdf = ({
       reject(error);
     }
   });
+};
 
 export default generateTablePdf;
