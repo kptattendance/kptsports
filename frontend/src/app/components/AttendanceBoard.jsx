@@ -14,7 +14,6 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  SlidersHorizontal,
   UserCheck,
   X,
 } from "lucide-react";
@@ -31,7 +30,6 @@ import {
   openPdfWindow,
   pickDefaultMeet,
   showPdf,
-  toLabel,
 } from "./boardParts";
 
 const API_URL =
@@ -70,17 +68,11 @@ export default function AttendanceBoard() {
   // FILTERS
   // ===================================================
 
-  const [search, setSearch] = useState("");
+  // Pick one event directly; status comes from the cards above
+  const [eventFilter, setEventFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [genderFilter, setGenderFilter] = useState("all");
-  const [participationFilter, setParticipationFilter] =
-    useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [onlyWithStudents, setOnlyWithStudents] =
     useState(true);
-
-  // Phones: filters fold away behind a button
-  const [showFilters, setShowFilters] = useState(false);
 
   const authHeaders = useCallback(
     async () => ({
@@ -229,66 +221,40 @@ export default function AttendanceBoard() {
   // FILTERED ROWS
   // ===================================================
 
-  const categories = useMemo(
+  // Events offered in the dropdown
+  const eventOptions = useMemo(
     () =>
-      [
-        ...new Set(
-          rows.map((row) => row.event.category).filter(Boolean)
-        ),
-      ].sort(),
-    [rows]
+      rows
+        .filter((row) => !onlyWithStudents || row.participantCount > 0)
+        .map((row) => [
+          row.event._id,
+          `${row.event.code} - ${row.event.name} (${row.event.gender})${
+            row.taken ? " ✓" : ""
+          }`,
+        ]),
+    [rows, onlyWithStudents]
   );
 
-  const filteredRows = useMemo(() => {
-    const term = search.trim().toLowerCase();
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        // A chosen event is always shown
+        if (eventFilter !== "all") {
+          return row.event._id === eventFilter;
+        }
 
-    return rows.filter((row) => {
-      const { event } = row;
+        if (onlyWithStudents && row.participantCount === 0) {
+          return false;
+        }
 
-      if (onlyWithStudents && row.participantCount === 0) {
-        return false;
-      }
+        if (statusFilter === "pending" && row.taken) {
+          return false;
+        }
 
-      if (statusFilter === "pending" && row.taken) {
-        return false;
-      }
-
-      if (statusFilter === "taken" && !row.taken) {
-        return false;
-      }
-
-      if (genderFilter !== "all" && event.gender !== genderFilter) {
-        return false;
-      }
-
-      if (
-        participationFilter !== "all" &&
-        event.participationCategory !== participationFilter
-      ) {
-        return false;
-      }
-
-      if (
-        categoryFilter !== "all" &&
-        event.category !== categoryFilter
-      ) {
-        return false;
-      }
-
-      return (
-        !term ||
-        `${event.code} ${event.name}`.toLowerCase().includes(term)
-      );
-    });
-  }, [
-    rows,
-    search,
-    statusFilter,
-    genderFilter,
-    participationFilter,
-    categoryFilter,
-    onlyWithStudents,
-  ]);
+        return !(statusFilter === "taken" && !row.taken);
+      }),
+    [rows, eventFilter, statusFilter, onlyWithStudents]
+  );
 
   // Counts cover events that have students
   const counts = useMemo(() => {
@@ -302,19 +268,9 @@ export default function AttendanceBoard() {
     };
   }, [rows]);
 
-  const activeFilterCount = [
-    statusFilter,
-    genderFilter,
-    participationFilter,
-    categoryFilter,
-  ].filter((value) => value !== "all").length;
-
   const clearFilters = () => {
-    setSearch("");
+    setEventFilter("all");
     setStatusFilter("all");
-    setGenderFilter("all");
-    setParticipationFilter("all");
-    setCategoryFilter("all");
     setOnlyWithStudents(true);
   };
 
@@ -419,90 +375,15 @@ export default function AttendanceBoard() {
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
 
-        <div className="flex gap-2">
+        <label className="mb-1.5 block text-xs font-semibold text-slate-500">
+          Event
+        </label>
 
-          <div className="relative min-w-0 flex-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search event or code..."
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base text-slate-700 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 sm:h-10 sm:text-sm"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowFilters((open) => !open)}
-            aria-expanded={showFilters}
-            className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition lg:hidden ${
-              showFilters || activeFilterCount > 0
-                ? "border-orange-300 bg-orange-50 text-orange-600"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            <SlidersHorizontal size={16} />
-            Filters
-            {activeFilterCount > 0 && ` (${activeFilterCount})`}
-          </button>
-
-        </div>
-
-        <div
-          className={`${
-            showFilters ? "grid" : "hidden"
-          } mt-3 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid lg:grid-cols-4`}
-        >
-
-          <FilterSelect
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              ["all", "All status"],
-              ["pending", "Pending"],
-              ["taken", "Taken"],
-            ]}
-          />
-
-          <FilterSelect
-            value={genderFilter}
-            onChange={setGenderFilter}
-            options={[
-              ["all", "All gender"],
-              ["male", "Male"],
-              ["female", "Female"],
-              ["mixed", "Mixed"],
-              ["open", "Open"],
-            ]}
-          />
-
-          <FilterSelect
-            value={participationFilter}
-            onChange={setParticipationFilter}
-            options={[
-              ["all", "All participation"],
-              ["regular", "Regular"],
-              ["physically_challenged", "Physically challenged"],
-            ]}
-          />
-
-          <FilterSelect
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            options={[
-              ["all", "All categories"],
-              ...categories.map((category) => [
-                category,
-                toLabel(category),
-              ]),
-            ]}
-          />
-
-        </div>
+        <FilterSelect
+          value={eventFilter}
+          onChange={setEventFilter}
+          options={[["all", "All events"], ...eventOptions]}
+        />
 
         <div className="mt-3 flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
 
