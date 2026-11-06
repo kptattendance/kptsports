@@ -8,7 +8,7 @@ import sendError from "../utils/sendError.js";
 import generateTablePdf from "../utils/generateTablePdf.js";
 
 const EVENT_FIELDS =
-  "code name category gender participationCategory eventType teamSize isActive displayOrder";
+  "code name category gender participationCategory eventType teamResult teamSize isActive displayOrder";
 
 const PARTICIPANT_FIELDS =
   "name registerNumber collegeCode semester branch gender photo participantType designation";

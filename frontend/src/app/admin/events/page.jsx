@@ -146,6 +146,7 @@ const defaultForm = {
   gender: "male",
   participationCategory: "regular",
   eventType: "individual",
+  teamResult: "places",
   maxParticipantsPerInstitution: "",
   teamSize: "",
   resultType: "position",
@@ -433,6 +434,10 @@ export default function AdminEventsPage() {
         event.eventType ||
         "individual",
 
+      teamResult:
+        event.teamResult ||
+        "places",
+
       maxParticipantsPerInstitution:
         event.maxParticipantsPerInstitution ??
         "",
@@ -549,6 +554,11 @@ export default function AdminEventsPage() {
 
         eventType:
           form.eventType,
+
+        teamResult:
+          form.eventType === "team"
+            ? form.teamResult
+            : "places",
 
         maxParticipantsPerInstitution:
           form.maxParticipantsPerInstitution ===
@@ -672,6 +682,11 @@ export default function AdminEventsPage() {
 
         eventType:
           form.eventType,
+
+        teamResult:
+          form.eventType === "team"
+            ? form.teamResult
+            : "places",
 
         maxParticipantsPerInstitution:
           form.maxParticipantsPerInstitution ===
@@ -1771,6 +1786,35 @@ function EventModal({
 
                 </select>
               </FormField>
+
+              {/* TEAM RESULT */}
+
+              {form.eventType ===
+                "team" && (
+                <FormField
+                  label="Team Result"
+                  required
+                >
+                  <select
+                    name="teamResult"
+                    value={
+                      form.teamResult
+                    }
+                    onChange={
+                      handleFormChange
+                    }
+                    disabled={loading}
+                    className="input-style"
+                  >
+                    <option value="places">
+                      1st, 2nd, 3rd places (relays, doubles)
+                    </option>
+                    <option value="winner_runner">
+                      Winner & Runner-up team (cricket, volleyball...)
+                    </option>
+                  </select>
+                </FormField>
+              )}
 
               {/* TEAM SIZE */}
 

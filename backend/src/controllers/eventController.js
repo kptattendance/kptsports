@@ -18,6 +18,7 @@ export const createEvent = async (
       gender,
       participationCategory,
       eventType,
+      teamResult,
       maxParticipantsPerInstitution,
       teamSize,
       resultType,
@@ -156,6 +157,12 @@ export const createEvent = async (
 
         eventType:
           finalEventType,
+
+        teamResult:
+          finalEventType === "team" &&
+          teamResult === "winner_runner"
+            ? "winner_runner"
+            : "places",
 
         maxParticipantsPerInstitution:
           maxParticipantsPerInstitution
@@ -360,6 +367,7 @@ export const updateEvent = async (
       gender,
       participationCategory,
       eventType,
+      teamResult,
       maxParticipantsPerInstitution,
       teamSize,
       resultType,
@@ -460,7 +468,28 @@ export const updateEvent = async (
         eventType === "individual"
       ) {
         event.teamSize = null;
+        event.teamResult = "places";
       }
+    }
+
+    if (teamResult !== undefined) {
+      if (
+        ![
+          "places",
+          "winner_runner",
+        ].includes(teamResult)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid team result",
+        });
+      }
+
+      event.teamResult =
+        event.eventType === "team"
+          ? teamResult
+          : "places";
     }
 
     // -------------------------------------------------

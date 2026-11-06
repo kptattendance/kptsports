@@ -428,7 +428,10 @@ const drawCertificate = (
   const cx = W / 2;
 
   const isWinner = certificate.certificateType === "winner";
-  const isTeam = event?.eventType === "team";
+  // Winner / Runner-up team wording (cricket, volleyball...)
+  const isTeam =
+    event?.eventType === "team" &&
+    event?.teamResult === "winner_runner";
   const isFaculty = application?.participantType === "faculty";
   const position = Number(certificate.position) || null;
 

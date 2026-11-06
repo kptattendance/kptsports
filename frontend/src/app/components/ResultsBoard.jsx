@@ -60,14 +60,35 @@ const PLACES = [
   },
 ];
 
-// Team events have a Winner and a Runner-up team
+// Group games (cricket, volleyball...) have a Winner and a
+// Runner-up team. Other team events (relays) keep 1st/2nd/3rd.
 const TEAM_PLACES = [
   { ...PLACES[0], label: "Winner" },
   { ...PLACES[1], label: "Runner-up" },
 ];
 
+const isWinnerRunner = (event) =>
+  event?.eventType === "team" &&
+  event?.teamResult === "winner_runner";
+
 const placesFor = (event) =>
-  event?.eventType === "team" ? TEAM_PLACES : PLACES;
+  isWinnerRunner(event) ? TEAM_PLACES : PLACES;
+
+// Colours of a player row / button in the team picker
+const TEAM_PICK_STYLES = {
+  1: {
+    row: "border-amber-300 bg-amber-50",
+    on: "bg-amber-500 text-white",
+  },
+  2: {
+    row: "border-slate-300 bg-slate-50",
+    on: "bg-slate-600 text-white",
+  },
+  3: {
+    row: "border-orange-300 bg-orange-50",
+    on: "bg-orange-700 text-white",
+  },
+};
 
 // Result types that have a measured value (time, distance...)
 const MEASURED_RESULT_TYPES = [
@@ -1069,8 +1090,10 @@ function ResultEntryModal({
   const { event } = row;
   const teamSize = getTeamSize(event);
 
-  // Team events: any number of players, Winner + Runner-up only
+  // Team events: any number of players per place.
+  // Group games: Winner + Runner-up only.
   const isTeam = event.eventType === "team";
+  const teamPlaces = placesFor(event);
 
   const showValue = MEASURED_RESULT_TYPES.includes(event.resultType);
 
@@ -1194,7 +1217,7 @@ function ResultEntryModal({
       const next = {
         1: previous[1].filter((id) => id !== studentId),
         2: previous[2].filter((id) => id !== studentId),
-        3: [],
+        3: previous[3].filter((id) => id !== studentId),
       };
 
       if (!wasHere) {
@@ -1251,9 +1274,7 @@ function ResultEntryModal({
       return;
     }
 
-    const positions = PLACES.filter(
-      (place) => !isTeam || place.position < 3
-    ).map((place) => ({
+    const positions = teamPlaces.map((place) => ({
       position: place.position,
       participants: places[place.position].filter(Boolean),
       resultValue: values[place.position],
@@ -1265,9 +1286,11 @@ function ResultEntryModal({
 
     if (!hasWinner && !row.entered) {
       showWarning(
-        isTeam
+        isWinnerRunner(event)
           ? "Mark the players of the Winner team."
-          : "Select at least the 1st place winner."
+          : isTeam
+            ? "Mark the players of the 1st place team."
+            : "Select at least the 1st place winner."
       );
       return;
     }
@@ -1393,28 +1416,29 @@ function ResultEntryModal({
               {isTeam ? (
                 <div>
                   <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold">
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700 ring-1 ring-amber-200">
-                      Winner team: {places[1].length}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200">
-                      Runner-up team: {places[2].length}
-                    </span>
+                    {teamPlaces.map((place) => (
+                      <span
+                        key={place.position}
+                        className={`rounded-full px-2.5 py-1 ring-1 ${place.badge}`}
+                      >
+                        {place.label} team: {places[place.position].length}
+                      </span>
+                    ))}
                   </div>
 
                   <div className="space-y-2">
                     {visiblePlayers.map((student) => {
-                      const inWinner = places[1].includes(student._id);
-                      const inRunner = places[2].includes(student._id);
+                      const chosen = teamPlaces.find((place) =>
+                        places[place.position].includes(student._id)
+                      );
 
                       return (
                         <div
                           key={student._id}
                           className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
-                            inWinner
-                              ? "border-amber-300 bg-amber-50"
-                              : inRunner
-                                ? "border-slate-300 bg-slate-50"
-                                : "border-slate-200 bg-white"
+                            chosen
+                              ? TEAM_PICK_STYLES[chosen.position].row
+                              : "border-slate-200 bg-white"
                           }`}
                         >
                           <span className="min-w-0 flex-1">
@@ -1430,31 +1454,25 @@ function ResultEntryModal({
                           </span>
 
                           <div className="flex shrink-0 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => toggleTeam(student._id, 1)}
-                              aria-pressed={inWinner}
-                              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
-                                inWinner
-                                  ? "bg-amber-500 text-white"
-                                  : "border border-slate-200 bg-white text-slate-500 hover:border-amber-300"
-                              }`}
-                            >
-                              Winner
-                            </button>
+                            {teamPlaces.map((place) => {
+                              const on = chosen?.position === place.position;
 
-                            <button
-                              type="button"
-                              onClick={() => toggleTeam(student._id, 2)}
-                              aria-pressed={inRunner}
-                              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
-                                inRunner
-                                  ? "bg-slate-600 text-white"
-                                  : "border border-slate-200 bg-white text-slate-500 hover:border-slate-400"
-                              }`}
-                            >
-                              Runner-up
-                            </button>
+                              return (
+                                <button
+                                  key={place.position}
+                                  type="button"
+                                  onClick={() => toggleTeam(student._id, place.position)}
+                                  aria-pressed={on}
+                                  className={`rounded-lg px-2.5 py-2 text-xs font-bold transition ${
+                                    on
+                                      ? TEAM_PICK_STYLES[place.position].on
+                                      : "border border-slate-200 bg-white text-slate-500 hover:border-slate-400"
+                                  }`}
+                                >
+                                  {place.label}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1545,7 +1563,7 @@ function ResultEntryModal({
 
               <p className="mt-3 text-xs text-slate-400">
                 {isTeam
-                  ? "Tap Winner or Runner-up for every player of those two teams. All other registered players get a participation certificate. "
+                  ? `Tap ${teamPlaces.map((place) => place.label).join(" / ")} for every player of the placed teams. All other registered players get a participation certificate. `
                   : "Leave a place empty if there is no winner for it. "}
                 Made a mistake later? Open this event again, correct it
                 and print again.

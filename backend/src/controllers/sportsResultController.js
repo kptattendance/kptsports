@@ -8,7 +8,7 @@ import sendError from "../utils/sendError.js";
 import { syncWinnerCertificates } from "../utils/syncCertificates.js";
 
 const EVENT_FIELDS =
-  "code name category gender participationCategory eventType teamSize resultType unit isActive displayOrder";
+  "code name category gender participationCategory eventType teamResult teamSize resultType unit isActive displayOrder";
 
 const PARTICIPANT_FIELDS =
   "name registerNumber collegeCode semester branch gender photo status participantType designation";
@@ -343,17 +343,19 @@ export const saveEventResults = async (req, res) => {
 
     // --------------------------------------------------
     // TEAM / INDIVIDUAL RULES
-    // Team events: Winner + Runner-up only, any squad size.
+    // Team events: any squad size. "Winner + Runner-up"
+    // team events have no 3rd place.
     // Individual events: one student per place.
     // --------------------------------------------------
 
     const isTeam = event.eventType === "team";
+    const winnerRunner = isTeam && event.teamResult === "winner_runner";
 
     const label = (position) =>
       position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
 
     for (const entry of entries) {
-      if (isTeam && entry.position === 3) {
+      if (winnerRunner && entry.position === 3) {
         return res.status(400).json({
           success: false,
           message: "Team events have only a Winner and a Runner-up team.",

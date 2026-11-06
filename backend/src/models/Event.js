@@ -49,6 +49,16 @@ participationCategory: {
       default: "individual",
     },
 
+    // Team events only:
+    // "places"        - 1st, 2nd, 3rd (relays, doubles)
+    // "winner_runner" - Winner + Runner-up team (cricket,
+    //                   volleyball, throwball, tug of war)
+    teamResult: {
+      type: String,
+      enum: ["places", "winner_runner"],
+      default: "places",
+    },
+
     maxParticipantsPerInstitution: {
       type: Number,
       default: null,
