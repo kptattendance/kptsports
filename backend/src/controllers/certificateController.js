@@ -425,7 +425,7 @@ export const printEventCertificates =
             ),
           },
         })
-          .select("photo name")
+          .select("photo name semester branch")
           .lean();
 
       const applicationById = new Map(

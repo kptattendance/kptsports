@@ -1,3 +1,5 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import {
   CLOUDINARY_HOST,
@@ -120,6 +122,254 @@ const loadStudentPhotos = async (items) => {
 };
 
 // =====================================================
+// FONTS (Google Fonts, SIL Open Font License,
+// licences next to the files in src/assets/fonts)
+// =====================================================
+
+const FONT_DIR = fileURLToPath(
+  new URL("../assets/fonts/", import.meta.url)
+);
+
+const FONTS = {
+  title: "CinzelDecorative-Bold.ttf",
+  script: "GreatVibes-Regular.ttf",
+  serif: "CrimsonText-Regular.ttf",
+  serifItalic: "CrimsonText-Italic.ttf",
+  serifSemi: "CrimsonText-SemiBold.ttf",
+  serifBold: "CrimsonText-Bold.ttf",
+  sans: "Lato-Regular.ttf",
+  sansBold: "Lato-Bold.ttf",
+  sansBlack: "Lato-Black.ttf",
+};
+
+const registerFonts = (doc) => {
+  for (const [name, file] of Object.entries(FONTS)) {
+    doc.registerFont(name, path.join(FONT_DIR, file));
+  }
+};
+
+// =====================================================
+// COLOURS
+// =====================================================
+
+const NAVY = "#142B4A";
+const MAROON = "#8B1E2D";
+const GOLD = "#B8860B";
+const GOLD_LIGHT = "#E9C46A";
+const INK = "#2D3748";
+const MUTED = "#5A6577";
+const PAPER = "#FFFDF7";
+const GREEN = "#176B3A";
+
+// Medal colours: [rim, light centre, text]
+const MEDALS = {
+  1: ["#B8860B", "#FBE7A1", "#5C4300"],
+  2: ["#7D8590", "#EEF0F3", "#2F3640"],
+  3: ["#9A5B2A", "#F3C9A0", "#4A2A10"],
+  participation: ["#142B4A", "#3C5A86", "#FFFFFF"],
+};
+
+const PLACE_NAMES = {
+  1: "First Place",
+  2: "Second Place",
+  3: "Third Place",
+};
+
+const PLACE_SHORT = {
+  1: "1st",
+  2: "2nd",
+  3: "3rd",
+};
+
+// =====================================================
+// SMALL HELPERS
+// =====================================================
+
+const formatLongDate = (value) => {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+};
+
+// "05 to 07 November 2026" / "30 November to 02 December 2026"
+const formatDateRange = (start, end) => {
+  const from = start ? new Date(start) : null;
+  const to = end ? new Date(end) : null;
+
+  if (!from || Number.isNaN(from.getTime())) {
+    return "";
+  }
+
+  if (!to || Number.isNaN(to.getTime()) || from.toDateString() === to.toDateString()) {
+    return `on ${formatLongDate(from)}`;
+  }
+
+  const part = (date, options) =>
+    date.toLocaleDateString("en-IN", { ...options, timeZone: "Asia/Kolkata" });
+
+  if (from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()) {
+    return `from ${part(from, { day: "2-digit" })} to ${formatLongDate(to)}`;
+  }
+
+  return `from ${part(from, { day: "2-digit", month: "long" })} to ${formatLongDate(to)}`;
+};
+
+const titleCase = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (letter) => letter.toUpperCase());
+
+// Largest font size (down to `min`) at which text fits
+const fitFontSize = (doc, font, text, maxWidth, size, min) => {
+  let fontSize = size;
+
+  doc.font(font);
+
+  while (fontSize > min && doc.fontSize(fontSize).widthOfString(text) > maxWidth) {
+    fontSize -= 1;
+  }
+
+  return fontSize;
+};
+
+const drawDiamond = (doc, x, y, size, color) => {
+  doc
+    .save()
+    .moveTo(x, y - size)
+    .lineTo(x + size, y)
+    .lineTo(x, y + size)
+    .lineTo(x - size, y)
+    .closePath()
+    .fill(color)
+    .restore();
+};
+
+const drawStar = (doc, cx, cy, outer, inner, color) => {
+  doc.save();
+
+  for (let i = 0; i < 10; i++) {
+    const radius = i % 2 === 0 ? outer : inner;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+
+    if (i === 0) {
+      doc.moveTo(x, y);
+    } else {
+      doc.lineTo(x, y);
+    }
+  }
+
+  doc.closePath().fill(color).restore();
+};
+
+// Gold line with a diamond in the middle
+const drawOrnamentLine = (doc, cx, y, halfWidth) => {
+  doc
+    .save()
+    .moveTo(cx - halfWidth, y)
+    .lineTo(cx - 8, y)
+    .moveTo(cx + 8, y)
+    .lineTo(cx + halfWidth, y)
+    .lineWidth(0.8)
+    .strokeColor(GOLD)
+    .stroke()
+    .restore();
+
+  drawDiamond(doc, cx, y, 4, GOLD);
+};
+
+// Centred paragraph that mixes fonts and colours.
+// segments: [{ text, font, color }]. Words are wrapped and
+// each line is centred by hand, because PDFKit mis-centres
+// lines that switch font part-way.
+const drawRichParagraph = (doc, segments, { centreX, top, width, fontSize, lineHeight }) => {
+  const words = [];
+
+  for (const segment of segments) {
+    for (const part of segment.text.split(/(\s+)/)) {
+      if (part) {
+        words.push({ ...segment, text: part, space: /^\s+$/.test(part) });
+      }
+    }
+  }
+
+  const measure = (word) => doc.font(word.font).fontSize(fontSize).widthOfString(word.text);
+
+  const lines = [];
+  let line = [];
+  let lineWidth = 0;
+
+  for (const word of words) {
+    const wordWidth = measure(word);
+
+    if (!word.space && line.length && lineWidth + wordWidth > width) {
+      lines.push(line);
+      line = [];
+      lineWidth = 0;
+    }
+
+    if (word.space && line.length === 0) {
+      continue;
+    }
+
+    line.push({ ...word, width: wordWidth });
+    lineWidth += wordWidth;
+  }
+
+  if (line.length) {
+    lines.push(line);
+  }
+
+  lines.forEach((items, index) => {
+    while (items.length && items[items.length - 1].space) {
+      items.pop();
+    }
+
+    const total = items.reduce((sum, item) => sum + item.width, 0);
+    let x = centreX - total / 2;
+    const y = top + index * lineHeight;
+
+    for (const item of items) {
+      if (!item.space) {
+        doc
+          .font(item.font)
+          .fontSize(fontSize)
+          .fillColor(item.color)
+          .text(item.text, x, y, { lineBreak: false });
+      }
+
+      x += item.width;
+    }
+  });
+
+  return top + lines.length * lineHeight;
+};
+
+const drawImageSafely = (doc, image, x, y, options, label) => {
+  if (!image) {
+    return false;
+  }
+
+  try {
+    doc.image(image, x, y, options);
+    return true;
+  } catch (error) {
+    console.error(`Certificate ${label} error:`, error.message);
+    return false;
+  }
+};
+
+// =====================================================
 // DRAW ONE CERTIFICATE ON THE CURRENT PAGE
 // =====================================================
 
@@ -129,6 +379,7 @@ const drawCertificate = (
     certificate,
     meet,
     event,
+    application,
     images,
     studentPhotoBuffer,
   }
@@ -140,1317 +391,427 @@ const drawCertificate = (
     collegeWatermarkBuffer,
   } = images;
 
-  // =================================================
-  // PAGE SIZE
-  // =================================================
+  const W = doc.page.width;
+  const H = doc.page.height;
+  const cx = W / 2;
 
-  const pageWidth =
-    doc.page.width;
+  const isWinner = certificate.certificateType === "winner";
+  const position = Number(certificate.position) || null;
 
-  const pageHeight =
-    doc.page.height;
-
-  const centerX =
-    pageWidth / 2;
+  const meetName = meet?.name || certificate.meetName || "Sports Meet";
+  const eventName = titleCase(event?.name || certificate.eventName || "");
 
   // =================================================
-  // COLORS
+  // PAPER + FRAME
   // =================================================
 
-  const NAVY =
-    "#142B4A";
+  doc.rect(0, 0, W, H).fill(PAPER);
 
-  const DARK_NAVY =
-    "#0B1F36";
+  // Navy outer band
+  doc.save().rect(12, 12, W - 24, H - 24).lineWidth(7).strokeColor(NAVY).stroke().restore();
 
-  const GOLD =
-    "#B8860B";
+  // Double gold rules
+  doc.save().rect(22, 22, W - 44, H - 44).lineWidth(1.6).strokeColor(GOLD).stroke().restore();
+  doc.save().rect(27, 27, W - 54, H - 54).lineWidth(0.5).strokeColor(GOLD).stroke().restore();
 
-  const LIGHT_GOLD =
-    "#D6B45A";
-
-  const MAROON =
-    "#8B1E2D";
-
-  const GREEN =
-    "#176B3A";
-
-  const TEXT =
-    "#25354A";
-
-// =================================================
-// BACKGROUND
-// =================================================
-
-doc
-  .rect(
-    0,
-    0,
-    pageWidth,
-    pageHeight
-  )
-  .fill("#FFFFFF");
-
-// =================================================
-// COLLEGE BUILDING WATERMARK
-// =================================================
-
-if (collegeWatermarkBuffer) {
-  try {
-
-    doc.save();
-
-    doc.opacity(0.07);
-
-    doc.image(
-collegeWatermarkBuffer,
-centerX - 260,
-190,
-{
-  fit: [520, 350],
-  align: "center",
-  valign: "center",
-}
-    );
-
-    doc.restore();
-
-  } catch (error) {
-    console.error(
-"COLLEGE WATERMARK PDF ERROR:",
-error.message
-    );
-  }
-}
-
-  // =================================================
-  // TOP LEFT DECORATION
-  // =================================================
-
-  doc
-    .fillColor(DARK_NAVY)
-    .moveTo(0, 0)
-    .lineTo(155, 0)
-    .lineTo(45, 28)
-    .lineTo(0, 28)
-    .closePath()
-    .fill();
-
-  doc
-    .fillColor(GOLD)
-    .moveTo(0, 28)
-    .lineTo(55, 28)
-    .lineTo(175, 0)
-    .lineTo(145, 0)
-    .closePath()
-    .fill();
-
-  // =================================================
-  // BOTTOM RIGHT DECORATION
-  // =================================================
-
-  doc
-    .fillColor(DARK_NAVY)
-    .moveTo(
-      pageWidth,
-      pageHeight
-    )
-    .lineTo(
-      pageWidth - 155,
-      pageHeight
-    )
-    .lineTo(
-      pageWidth - 45,
-      pageHeight - 28
-    )
-    .lineTo(
-      pageWidth,
-      pageHeight - 28
-    )
-    .closePath()
-    .fill();
-
-  doc
-    .fillColor(GOLD)
-    .moveTo(
-      pageWidth,
-      pageHeight - 28
-    )
-    .lineTo(
-      pageWidth - 55,
-      pageHeight - 28
-    )
-    .lineTo(
-      pageWidth - 175,
-      pageHeight
-    )
-    .lineTo(
-      pageWidth - 145,
-      pageHeight
-    )
-    .closePath()
-    .fill();
-
-  // =================================================
-  // OUTER BORDER
-  // =================================================
-
-  doc
-    .lineWidth(2.5)
-    .strokeColor(GOLD)
-    .roundedRect(
-      18,
-      18,
-      pageWidth - 36,
-      pageHeight - 36,
-      3
-    )
-    .stroke();
-
-  // =================================================
-  // INNER BORDER
-  // =================================================
-
-  doc
-    .lineWidth(0.8)
-    .strokeColor(NAVY)
-    .roundedRect(
-      28,
-      28,
-      pageWidth - 56,
-      pageHeight - 56,
-      2
-    )
-    .stroke();
-
-  // =================================================
-  // CORNER CROSSES
-  // =================================================
-
-  const crossSize = 12;
-
-  const cornerPoints = [
-    [42, 50],
-    [pageWidth - 42, 50],
-    [42, pageHeight - 50],
-    [
-      pageWidth - 42,
-      pageHeight - 50,
-    ],
+  // Corner ornaments
+  const corners = [
+    [27, 27, 1, 1],
+    [W - 27, 27, -1, 1],
+    [27, H - 27, 1, -1],
+    [W - 27, H - 27, -1, -1],
   ];
 
-  cornerPoints.forEach(
-    ([x, y]) => {
-      doc
-        .lineWidth(1.5)
-        .strokeColor(GOLD)
-        .moveTo(
-          x - crossSize,
-          y
-        )
-        .lineTo(
-          x + crossSize,
-          y
-        )
-        .moveTo(
-          x,
-          y - crossSize
-        )
-        .lineTo(
-          x,
-          y + crossSize
-        )
-        .stroke();
-    }
+  for (const [x, y, dx, dy] of corners) {
+    doc
+      .save()
+      .moveTo(x + dx * 10, y + dy * 48)
+      .lineTo(x + dx * 10, y + dy * 10)
+      .lineTo(x + dx * 48, y + dy * 10)
+      .lineWidth(1.2)
+      .strokeColor(GOLD)
+      .stroke()
+      .restore();
+
+    drawDiamond(doc, x + dx * 10, y + dy * 10, 5, GOLD);
+    drawDiamond(doc, x + dx * 52, y + dy * 10, 2.5, GOLD);
+    drawDiamond(doc, x + dx * 10, y + dy * 52, 2.5, GOLD);
+  }
+
+  // =================================================
+  // WATERMARK (college building, very light)
+  // =================================================
+
+  if (collegeWatermarkBuffer) {
+    doc.save().opacity(0.04);
+    drawImageSafely(
+      doc,
+      collegeWatermarkBuffer,
+      cx - 240,
+      175,
+      { fit: [480, 300], align: "center", valign: "center" },
+      "watermark"
+    );
+    doc.restore();
+  }
+
+  // =================================================
+  // HEADER
+  // =================================================
+
+  drawImageSafely(doc, logo3Buffer, 52, 40, { fit: [74, 74], align: "center", valign: "center" }, "left logo");
+  drawImageSafely(doc, logo4Buffer, W - 126, 40, { fit: [74, 74], align: "center", valign: "center" }, "right logo");
+  drawImageSafely(doc, logo5Buffer, cx - 15, 34, { fit: [30, 30], align: "center", valign: "center" }, "emblem");
+
+  doc
+    .font("sansBold")
+    .fontSize(7.5)
+    .fillColor(MUTED)
+    .text("GOVERNMENT OF KARNATAKA   ·   DEPARTMENT OF TECHNICAL EDUCATION", 140, 68, {
+      width: W - 280,
+      align: "center",
+      characterSpacing: 1.2,
+    });
+
+  doc
+    .font("serifBold")
+    .fontSize(22)
+    .fillColor(MAROON)
+    .text("KARNATAKA (GOVT.) POLYTECHNIC, MANGALURU", 130, 78, {
+      width: W - 260,
+      align: "center",
+    });
+
+  doc
+    .font("serifItalic")
+    .fontSize(9.5)
+    .fillColor(MUTED)
+    .text(
+      "An Autonomous Institution under AICTE, New Delhi  ·  Kadri Hills, Mangaluru – 575004, Karnataka",
+      130,
+      104,
+      { width: W - 260, align: "center" }
+    );
+
+  // =================================================
+  // MEET RIBBON
+  // =================================================
+
+  const ribbonText = meetName.toUpperCase();
+
+  doc.font("sansBold").fontSize(9.5);
+
+  const ribbonWidth = Math.min(
+    doc.widthOfString(ribbonText, { characterSpacing: 2 }) + 70,
+    W - 300
   );
 
-  // =================================================
-  // LEFT COLLEGE LOGO
-  // =================================================
-
-  if (logo3Buffer) {
-    doc.image(
-      logo3Buffer,
-      55,
-      48,
-      {
-        fit: [88, 82],
-        align: "center",
-        valign: "center",
-      }
-    );
-  }
-
-  // =================================================
-  // RIGHT COLLEGE LOGO
-  // =================================================
-
-  if (logo4Buffer) {
-    doc.image(
-      logo4Buffer,
-      pageWidth - 143,
-      48,
-      {
-        fit: [88, 82],
-        align: "center",
-        valign: "center",
-      }
-    );
-  }
-
-  // =================================================
-  // KARNATAKA EMBLEM
-  // ABOVE GOVERNMENT TEXT
-  // =================================================
-
-  if (logo5Buffer) {
-    doc.image(
-      logo5Buffer,
-      centerX - 20,
-      29,
-      {
-        fit: [40, 27],
-        align: "center",
-        valign: "center",
-      }
-    );
-  }
-
-  // =================================================
-  // GOVERNMENT OF KARNATAKA
-  // =================================================
+  const ribbonY = 124;
+  const ribbonH = 21;
+  const ribbonLeft = cx - ribbonWidth / 2;
+  const ribbonRight = cx + ribbonWidth / 2;
 
   doc
-    .fillColor(NAVY)
-    .font("Times-Bold")
-    .fontSize(15)
-    .text(
-      "GOVERNMENT OF KARNATAKA",
-      180,
-      61,
-      {
-        width:
-          pageWidth - 360,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // DEPARTMENT
-  // =================================================
-
-  doc
-    .fillColor(NAVY)
-    .font("Times-Roman")
-    .fontSize(10)
-    .text(
-      "DEPARTMENT OF TECHNICAL EDUCATION",
-      180,
-      80,
-      {
-        width:
-          pageWidth - 360,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // COLLEGE NAME
-  // =================================================
-
-  doc
-    .fillColor(MAROON)
-    .font("Times-Bold")
-    .fontSize(15)
-    .text(
-      "KARNATAKA (GOVT.) POLYTECHNIC, MANGALURU",
-      150,
-      98,
-      {
-        width:
-          pageWidth - 300,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // AUTONOMOUS
-  // =================================================
-
-  doc
-    .fillColor(NAVY)
-    .font("Times-Roman")
-    .fontSize(8.5)
-    .text(
-      "(An Autonomous Institution under AICTE, New Delhi)",
-      160,
-      118,
-      {
-        width:
-          pageWidth - 320,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // ADDRESS
-  // =================================================
-
-  doc
-    .fontSize(8.5)
-    .text(
-      "Kadri Hills, Mangaluru – 575004, Dakshina Kannada, Karnataka",
-      160,
-      132,
-      {
-        width:
-          pageWidth - 320,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // HEADER DIVIDER
-  // =================================================
-
-  const dividerY =
-    150;
-
-  doc
-    .lineWidth(1)
-    .strokeColor(GOLD)
-    .moveTo(
-      275,
-      dividerY
-    )
-    .lineTo(
-      centerX - 20,
-      dividerY
-    )
-    .stroke();
-
-  doc
-    .moveTo(
-      centerX + 20,
-      dividerY
-    )
-    .lineTo(
-      pageWidth - 275,
-      dividerY
-    )
-    .stroke();
-
-  // =================================================
-  // CENTER DIAMONDS
-  // =================================================
-
-  doc
-    .fillColor(GOLD)
-    .moveTo(
-      centerX,
-      dividerY - 7
-    )
-    .lineTo(
-      centerX + 7,
-      dividerY
-    )
-    .lineTo(
-      centerX,
-      dividerY + 7
-    )
-    .lineTo(
-      centerX - 7,
-      dividerY
-    )
+    .save()
+    .moveTo(ribbonLeft - 12, ribbonY)
+    .lineTo(ribbonRight + 12, ribbonY)
+    .lineTo(ribbonRight, ribbonY + ribbonH / 2)
+    .lineTo(ribbonRight + 12, ribbonY + ribbonH)
+    .lineTo(ribbonLeft - 12, ribbonY + ribbonH)
+    .lineTo(ribbonLeft, ribbonY + ribbonH / 2)
     .closePath()
-    .fill();
+    .fill(NAVY)
+    .restore();
 
   doc
-    .fillColor(GOLD)
-    .moveTo(
-      centerX - 17,
-      dividerY
-    )
-    .lineTo(
-      centerX - 11,
-      dividerY - 5
-    )
-    .lineTo(
-      centerX - 5,
-      dividerY
-    )
-    .lineTo(
-      centerX - 11,
-      dividerY + 5
-    )
-    .closePath()
-    .fill();
+    .font("sansBold")
+    .fontSize(9.5)
+    .fillColor(GOLD_LIGHT)
+    .text(ribbonText, ribbonLeft, ribbonY + 5.5, {
+      width: ribbonWidth,
+      align: "center",
+      characterSpacing: 2,
+      lineBreak: false,
+    });
+
+  // =================================================
+  // TITLE
+  // =================================================
+
+  const goldText = doc
+    .linearGradient(cx - 180, 0, cx + 180, 0)
+    .stop(0, "#8A6410")
+    .stop(0.5, "#D4A72C")
+    .stop(1, "#8A6410");
 
   doc
-    .fillColor(GOLD)
-    .moveTo(
-      centerX + 17,
-      dividerY
-    )
-    .lineTo(
-      centerX + 11,
-      dividerY - 5
-    )
-    .lineTo(
-      centerX + 5,
-      dividerY
-    )
-    .lineTo(
-      centerX + 11,
-      dividerY + 5
-    )
-    .closePath()
-    .fill();
+    .font("title")
+    .fontSize(46)
+    .fillColor(goldText)
+    .text("Certificate", 0, 150, { width: W, align: "center" });
 
-  // =================================================
-  // SPORTS MEET NAME
-  // =================================================
+  const subtitle = isWinner ? "OF MERIT" : "OF PARTICIPATION";
 
-  const meetName =
-    meet?.name ||
-    certificate?.meetName ||
-    "SPORTS MEET";
-
-  const meetYear =
-    meet?.year
-      ? ` ${meet.year}`
-      : "";
-
-  doc
-    .fillColor(GREEN)
-    .font("Times-Bold")
-    .fontSize(11)
-    .text(
-      `${meetName}${meetYear}`,
-      100,
-      161,
-      {
-        width:
-          pageWidth - 200,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // CERTIFICATE
-  // =================================================
+  doc.font("sansBlack").fontSize(10.5);
+  const subtitleWidth = doc.widthOfString(subtitle, { characterSpacing: 4 });
 
   doc
     .fillColor(NAVY)
-    .font("Times-Bold")
-    .fontSize(30)
-    .text(
-      "CERTIFICATE",
-      100,
-      178,
-      {
-        width:
-          pageWidth - 200,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // MERIT / PARTICIPATION
-  // =================================================
-
-  const isWinner =
-    certificate.certificateType ===
-    "winner";
+    .text(subtitle, cx - subtitleWidth / 2, 207, {
+      characterSpacing: 4,
+      lineBreak: false,
+    });
 
   doc
-    .fillColor(GOLD)
-    .font("Times-Bold")
-    .fontSize(12)
-    .text(
-      isWinner
-        ? "OF MERIT"
-        : "OF PARTICIPATION",
-      100,
-      216,
-      {
-        width:
-          pageWidth - 200,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // GOLD LINE
-  // =================================================
-
-  doc
-    .lineWidth(1)
-    .strokeColor(
-      LIGHT_GOLD
-    )
-    .moveTo(
-      centerX - 42,
-      235
-    )
-    .lineTo(
-      centerX + 42,
-      235
-    )
-    .stroke();
-
-  // =================================================
-  // STUDENT PHOTO
-  // =================================================
-
-  const photoX = 72;
-  const photoY = 298;
-  const photoWidth = 92;
-  const photoHeight = 112;
-
-  // Outer frame
-  doc
-    .lineWidth(2)
-    .strokeColor(GOLD)
-    .rect(
-      photoX,
-      photoY,
-      photoWidth,
-      photoHeight
-    )
-    .stroke();
-
-  // Inner frame
-  doc
+    .save()
+    .moveTo(cx - subtitleWidth / 2 - 70, 213)
+    .lineTo(cx - subtitleWidth / 2 - 14, 213)
+    .moveTo(cx + subtitleWidth / 2 + 14, 213)
+    .lineTo(cx + subtitleWidth / 2 + 70, 213)
     .lineWidth(0.8)
-    .strokeColor(
-      LIGHT_GOLD
-    )
-    .rect(
-      photoX + 4,
-      photoY + 4,
-      photoWidth - 8,
-      photoHeight - 8
-    )
-    .stroke();
-
-  // =================================================
-  // INSERT STUDENT PHOTO
-  // =================================================
-
-  if (studentPhotoBuffer) {
-    try {
-      doc.image(
-        studentPhotoBuffer,
-        photoX + 5,
-        photoY + 5,
-        {
-          fit: [
-            photoWidth - 10,
-            photoHeight - 10,
-          ],
-          align: "center",
-          valign: "center",
-        }
-      );
-
-    } catch (error) {
-      console.error(
-        "PDFKit PHOTO ERROR:",
-        error.message
-      );
-
-      doc
-        .fillColor("#F7F8FA")
-        .rect(
-          photoX + 5,
-          photoY + 5,
-          photoWidth - 10,
-          photoHeight - 10
-        )
-        .fill();
-
-      doc
-        .fillColor(TEXT)
-        .font(
-          "Times-Roman"
-        )
-        .fontSize(8)
-        .text(
-          "PHOTO ERROR",
-          photoX + 5,
-          photoY + 52,
-          {
-            width:
-              photoWidth - 10,
-            align:
-              "center",
-          }
-        );
-    }
-  } else {
-    console.error(
-      "PHOTO NOT AVAILABLE FOR PDF."
-    );
-
-    doc
-      .fillColor("#F7F8FA")
-      .rect(
-        photoX + 5,
-        photoY + 5,
-        photoWidth - 10,
-        photoHeight - 10
-      )
-      .fill();
-
-    doc
-      .fillColor(TEXT)
-      .font(
-        "Times-Roman"
-      )
-      .fontSize(8)
-      .text(
-        "PHOTO NOT FOUND",
-        photoX + 5,
-        photoY + 50,
-        {
-          width:
-            photoWidth - 10,
-          align:
-            "center",
-        }
-      );
-  }
-
-  // =================================================
-  // MAIN CONTENT
-  // =================================================
-
-  const contentX =
-    190;
-
-  const contentWidth =
-    pageWidth - 380;
-
-  // =================================================
-  // INTRODUCTION
-  // =================================================
-
-  doc
-    .fillColor(TEXT)
-    .font("Times-Roman")
-    .fontSize(11)
-    .text(
-      "This certificate is proudly presented to",
-      contentX,
-      252,
-      {
-        width:
-          contentWidth,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // STUDENT NAME
-  // =================================================
-
-  doc
-    .fillColor(MAROON)
-    .font("Times-Bold")
-    .fontSize(27)
-    .text(
-      String(
-        certificate.studentName ||
-          "STUDENT"
-      ).toUpperCase(),
-      contentX,
-      274,
-      {
-        width:
-          contentWidth,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // GOLD LINE BELOW NAME
-  // =================================================
-
-  doc
-    .lineWidth(1)
-    .strokeColor(
-      LIGHT_GOLD
-    )
-    .moveTo(
-      centerX - 75,
-      308
-    )
-    .lineTo(
-      centerX + 75,
-      308
-    )
-    .stroke();
-
-  // =================================================
-  // REGISTER NUMBER
-  // =================================================
-
-  doc
-    .fillColor(NAVY)
-    .font("Times-Roman")
-    .fontSize(9)
-    .text(
-      `Register Number: ${
-        certificate.registerNumber ||
-        "-"
-      }`,
-      contentX,
-      316,
-      {
-        width:
-          contentWidth,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // WINNER / PARTICIPATION
-  // =================================================
-
-  if (isWinner) {
-    const positionText =
-      certificate.position === 1
-        ? "FIRST PLACE"
-        : certificate.position === 2
-        ? "SECOND PLACE"
-        : "THIRD PLACE";
-
-    // -----------------------------------------------
-    // PARAGRAPH LINE 1
-    // -----------------------------------------------
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "in recognition of outstanding achievement and",
-        contentX,
-        338,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-
-    // -----------------------------------------------
-    // PARAGRAPH LINE 2
-    // -----------------------------------------------
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "commendable performance in the",
-        contentX,
-        354,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-
-    // -----------------------------------------------
-    // POSITION
-    // -----------------------------------------------
-
-    doc
-      .fillColor(GOLD)
-      .font("Times-Bold")
-      .fontSize(19)
-      .text(
-        positionText,
-        contentX,
-        374,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-
-    // -----------------------------------------------
-    // EVENT INTRODUCTION
-    // -----------------------------------------------
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "in the following sporting event:",
-        contentX,
-        399,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-  } else {
-    // -----------------------------------------------
-    // PARTICIPATION PARAGRAPH
-    // -----------------------------------------------
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "in recognition of active participation,",
-        contentX,
-        344,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "enthusiasm and commendable sportsmanship",
-        contentX,
-        360,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-
-    doc
-      .fillColor(TEXT)
-      .font("Times-Roman")
-      .fontSize(10.5)
-      .text(
-        "in the following sporting event:",
-        contentX,
-        376,
-        {
-          width:
-            contentWidth,
-          align: "center",
-        }
-      );
-  }
-
-  // =================================================
-  // EVENT NAME
-  // =================================================
-
-  const eventY =
-    isWinner
-      ? 420
-      : 398;
-
-  doc
-    .fillColor(NAVY)
-    .font("Times-Bold")
-    .fontSize(21)
-    .text(
-      String(
-        event?.name ||
-          certificate.eventName ||
-          "SPORTS EVENT"
-      ).toUpperCase(),
-      180,
-      eventY,
-      {
-        width:
-          pageWidth - 360,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // GOLD LINE
-  // =================================================
-
-  doc
-    .lineWidth(1)
-    .strokeColor(
-      LIGHT_GOLD
-    )
-    .moveTo(
-      centerX - 70,
-      eventY + 29
-    )
-    .lineTo(
-      centerX + 70,
-      eventY + 29
-    )
-    .stroke();
-
-  // =================================================
-  // SPORTS MEET
-  // =================================================
-
-  doc
-    .fillColor(GREEN)
-    .font("Times-Bold")
-    .fontSize(10)
-    .text(
-      `${meetName}${meetYear}`,
-      180,
-      eventY + 38,
-      {
-        width:
-          pageWidth - 360,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // INSTITUTION
-  // =================================================
-
-  doc
-    .fillColor(TEXT)
-    .font("Times-Roman")
-    .fontSize(8)
-    .text(
-      `Representing Institution Code: ${
-        certificate.collegeCode ||
-        "-"
-      }`,
-      180,
-      eventY + 55,
-      {
-        width:
-          pageWidth - 360,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // MERIT / SPORTS SEAL
-  // =================================================
-
-  const sealX =
-    pageWidth - 105;
-
-  const sealY = 365;
-
-  const sealRadius = 42;
-
-  doc
-    .lineWidth(2)
     .strokeColor(GOLD)
-    .circle(
-      sealX,
-      sealY,
-      sealRadius
-    )
-    .stroke();
+    .stroke()
+    .restore();
+
+  drawDiamond(doc, cx - subtitleWidth / 2 - 9, 213, 3, GOLD);
+  drawDiamond(doc, cx + subtitleWidth / 2 + 9, 213, 3, GOLD);
+
+  // =================================================
+  // RECIPIENT
+  // =================================================
+
+  const textLeft = 200;
+  const textWidth = W - 400;
 
   doc
-    .lineWidth(1)
-    .strokeColor(
-      LIGHT_GOLD
-    )
-    .circle(
-      sealX,
-      sealY,
-      sealRadius - 7
-    )
-    .stroke();
+    .font("serifItalic")
+    .fontSize(14)
+    .fillColor(MUTED)
+    .text("This is to certify that", textLeft, 230, {
+      width: textWidth,
+      align: "center",
+    });
+
+  const studentName = titleCase(certificate.studentName || application?.name || "Student");
+  const nameSize = fitFontSize(doc, "script", studentName, textWidth, 52, 30);
+
+  doc
+    .font("script")
+    .fontSize(nameSize)
+    .fillColor(NAVY)
+    .text(studentName, textLeft, 244 + (52 - nameSize) / 2, {
+      width: textWidth,
+      align: "center",
+      lineBreak: false,
+    });
+
+  drawOrnamentLine(doc, cx, 310, 200);
+
+  const details = [
+    certificate.registerNumber && `Reg. No. ${certificate.registerNumber}`,
+    application?.semester && `Semester ${application.semester}`,
+    application?.branch,
+    certificate.collegeCode && `College Code ${certificate.collegeCode}`,
+  ].filter(Boolean);
+
+  doc
+    .font("sansBold")
+    .fontSize(8.5)
+    .fillColor(MUTED)
+    .text(details.join("   ·   "), textLeft, 318, {
+      width: textWidth,
+      align: "center",
+      characterSpacing: 0.6,
+    });
 
   // =================================================
-  // STAR FUNCTION
+  // CITATION
   // =================================================
 
-  const drawStar = (
-    cx,
-    cy,
-    outerRadius,
-    innerRadius
-  ) => {
-    const points = 5;
+  const venue = meet?.venue ? `, held at ${meet.venue}` : "";
+  const dates = formatDateRange(meet?.startDate, meet?.endDate);
+  const when = dates ? ` ${dates}` : "";
 
-    const angle =
-      -Math.PI / 2;
+  const ending = isWinner && position
+    ? `${venue}${when}, displaying outstanding skill, determination and true sportsmanship.`
+    : `${venue}${when}, and displayed admirable enthusiasm, team spirit and sportsmanship.`;
 
-    doc.moveTo(
-      cx +
-        Math.cos(angle) *
-          outerRadius,
-      cy +
-        Math.sin(angle) *
-          outerRadius
-    );
+  const segments = isWinner && position
+    ? [
+        { text: "has secured ", font: "serif", color: INK },
+        { text: PLACE_NAMES[position], font: "serifBold", color: MAROON },
+        { text: " in ", font: "serif", color: INK },
+        { text: eventName, font: "serifBold", color: NAVY },
+        { text: ` at the ${meetName}${ending}`, font: "serif", color: INK },
+      ]
+    : [
+        { text: "has actively participated in ", font: "serif", color: INK },
+        { text: eventName, font: "serifBold", color: NAVY },
+        { text: ` at the ${meetName}${ending}`, font: "serif", color: INK },
+      ];
 
-    for (
-      let i = 1;
-      i < points * 2;
-      i++
-    ) {
-      const radius =
-        i % 2 === 0
-          ? outerRadius
-          : innerRadius;
+  drawRichParagraph(doc, segments, {
+    centreX: cx,
+    top: 347,
+    width: textWidth,
+    fontSize: 15.5,
+    lineHeight: 22,
+  });
 
-      const currentAngle =
-        angle +
-        (Math.PI / points) *
-          i;
+  // =================================================
+  // PHOTO (left)
+  // =================================================
 
-      doc.lineTo(
-        cx +
-          Math.cos(
-            currentAngle
-          ) *
-            radius,
-        cy +
-          Math.sin(
-            currentAngle
-          ) *
-            radius
-      );
-    }
+  const photoX = 70;
+  const photoY = 222;
+  const photoW = 100;
+  const photoH = 124;
 
-    doc.closePath();
+  doc.save().rect(photoX - 5, photoY - 5, photoW + 10, photoH + 10).lineWidth(1.6).strokeColor(GOLD).stroke().restore();
+  doc.save().rect(photoX, photoY, photoW, photoH).fill("#FFFFFF").restore();
 
-    doc.fill();
+  const photoDrawn = drawImageSafely(
+    doc,
+    studentPhotoBuffer,
+    photoX + 3,
+    photoY + 3,
+    { fit: [photoW - 6, photoH - 6], align: "center", valign: "center" },
+    "photo"
+  );
+
+  if (!photoDrawn) {
+    doc
+      .font("sansBold")
+      .fontSize(8)
+      .fillColor("#A0AEC0")
+      .text("PHOTO", photoX, photoY + photoH / 2 - 4, { width: photoW, align: "center" });
+  }
+
+  doc.save().rect(photoX, photoY, photoW, photoH).lineWidth(0.5).strokeColor(GOLD).stroke().restore();
+
+  // =================================================
+  // MEDAL (right)
+  // =================================================
+
+  const [rim, centre, medalText] =
+    isWinner && position ? MEDALS[position] : MEDALS.participation;
+
+  const mx = W - 120;
+  const my = 272;
+  const radius = 46;
+
+  // Ribbon tails
+  for (const side of [-1, 1]) {
+    doc
+      .save()
+      .moveTo(mx + side * 10, my + 20)
+      .lineTo(mx + side * 36, my + 78)
+      .lineTo(mx + side * 24, my + 70)
+      .lineTo(mx + side * 16, my + 84)
+      .lineTo(mx + side * -6, my + 28)
+      .closePath()
+      .fill(side < 0 ? NAVY : MAROON)
+      .restore();
+  }
+
+  // Scalloped edge
+  doc.save();
+  for (let i = 0; i < 24; i++) {
+    const angle = (Math.PI * 2 * i) / 24;
+    doc.circle(mx + Math.cos(angle) * radius, my + Math.sin(angle) * radius, 5);
+  }
+  doc.fill(rim).restore();
+
+  const medalFill = doc
+    .radialGradient(mx - 12, my - 14, 4, mx, my, radius)
+    .stop(0, centre)
+    .stop(1, rim);
+
+  doc.save().circle(mx, my, radius).fill(medalFill).restore();
+  doc.save().circle(mx, my, radius - 7).dash(2, { space: 2 }).lineWidth(0.8).strokeColor(medalText).opacity(0.6).stroke().restore();
+
+  if (isWinner && position) {
+    doc
+      .font("serifBold")
+      .fontSize(32)
+      .fillColor(medalText)
+      .text(PLACE_SHORT[position], mx - radius, my - 25, { width: radius * 2, align: "center" });
+
+    doc
+      .font("sansBlack")
+      .fontSize(8)
+      .fillColor(medalText)
+      .text("PLACE", mx - radius, my + 12, { width: radius * 2, align: "center", characterSpacing: 2.5 });
+  } else {
+    drawStar(doc, mx, my - 8, 15, 6.5, GOLD_LIGHT);
+
+    doc
+      .font("sansBlack")
+      .fontSize(7)
+      .fillColor(medalText)
+      .text("PARTICIPANT", mx - radius, my + 13, { width: radius * 2, align: "center", characterSpacing: 1.2 });
+  }
+
+  // =================================================
+  // SIGNATURES + CERTIFICATE DETAILS
+  // =================================================
+
+  const signY = 478;
+
+  const drawSignature = (x, title) => {
+    doc.save().moveTo(x, signY).lineTo(x + 170, signY).lineWidth(0.8).strokeColor(NAVY).stroke().restore();
+
+    doc
+      .font("serifSemi")
+      .fontSize(13)
+      .fillColor(NAVY)
+      .text(title, x, signY + 6, { width: 170, align: "center" });
+
+    doc
+      .font("sans")
+      .fontSize(8)
+      .fillColor(MUTED)
+      .text("Karnataka (Govt.) Polytechnic, Mangaluru", x - 15, signY + 23, { width: 200, align: "center" });
   };
 
-  doc.fillColor(GOLD);
-
-  drawStar(
-    sealX - 15,
-    sealY - 18,
-    5,
-    2
-  );
-
-  drawStar(
-    sealX,
-    sealY - 18,
-    5,
-    2
-  );
-
-  drawStar(
-    sealX + 15,
-    sealY - 18,
-    5,
-    2
-  );
-
-  // =================================================
-  // SEAL TEXT
-  // =================================================
+  drawSignature(80, "Sports Officer");
+  drawSignature(W - 250, "Principal");
 
   doc
+    .font("sansBold")
+    .fontSize(8.5)
     .fillColor(NAVY)
-    .font("Times-Bold")
-    .fontSize(8)
-    .text(
-      isWinner
-        ? "MERIT"
-        : "SPORTS",
-      sealX - 30,
-      sealY - 2,
-      {
-        width: 60,
-        align: "center",
-      }
-    );
+    .text(`Certificate No. ${certificate.certificateNumber || ""}`, cx - 130, signY - 4, {
+      width: 260,
+      align: "center",
+      characterSpacing: 0.5,
+    });
 
   doc
-    .fontSize(7)
-    .text(
-      isWinner
-        ? "ACHIEVEMENT"
-        : "PARTICIPATION",
-      sealX - 35,
-      sealY + 11,
-      {
-        width: 70,
-        align: "center",
-      }
-    );
+    .font("sans")
+    .fontSize(8.5)
+    .fillColor(MUTED)
+    .text(`Issued on ${formatLongDate(certificate.issuedAt || new Date())}  ·  Mangaluru`, cx - 130, signY + 10, {
+      width: 260,
+      align: "center",
+    });
+
+  // =================================================
+  // MOTTO
+  // =================================================
+
+  drawOrnamentLine(doc, cx, H - 50, 120);
 
   doc
-    .fillColor(GOLD)
-    .fontSize(6.5)
-    .text(
-      "KPT MANGALURU",
-      sealX - 35,
-      sealY + 25,
-      {
-        width: 70,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // FOOTER
-  // =================================================
-
-  const footerY =
-    pageHeight - 125;
-
-  const issuedDate =
-    new Date(
-      certificate.issuedAt ||
-        Date.now()
-    );
-
-  const formattedDate =
-    issuedDate.toLocaleDateString(
-      "en-IN"
-    );
-
-  // =================================================
-  // CERTIFICATE NUMBER
-  // =================================================
-
-  doc
-    .fillColor(TEXT)
-    .font("Times-Roman")
-    .fontSize(8)
-    .text(
-      `Certificate No.: ${
-        certificate.certificateNumber ||
-        "-"
-      }`,
-      55,
-      footerY,
-      {
-        width: 300,
-        align: "left",
-      }
-    );
-
-  // =================================================
-  // DATE
-  // =================================================
-
-  doc
-    .text(
-      `Date of Issue: ${formattedDate}`,
-      pageWidth - 305,
-      footerY,
-      {
-        width: 250,
-        align: "right",
-      }
-    );
-
-  // =================================================
-  // PLACE
-  // =================================================
-
-  doc
-    .text(
-      "Place: Mangaluru",
-      pageWidth - 305,
-      footerY + 15,
-      {
-        width: 250,
-        align: "right",
-      }
-    );
-
-  // =================================================
-  // SPORTS OFFICER
-  // =================================================
-
-  const signatureY =
-    pageHeight - 67;
-
-  doc
-    .lineWidth(1)
-    .strokeColor(NAVY)
-    .moveTo(
-      65,
-      signatureY
-    )
-    .lineTo(
-      250,
-      signatureY
-    )
-    .stroke();
-
-  doc
-    .fillColor(NAVY)
-    .font("Times-Bold")
-    .fontSize(9)
-    .text(
-      "Sports Officer",
-      65,
-      signatureY + 5,
-      {
-        width: 185,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // PRINCIPAL
-  // =================================================
-
-  doc
-    .moveTo(
-      pageWidth - 250,
-      signatureY
-    )
-    .lineTo(
-      pageWidth - 65,
-      signatureY
-    )
-    .stroke();
-
-  doc
-    .fillColor(MAROON)
-    .font("Times-Bold")
-    .fontSize(9)
-    .text(
-      "Principal",
-      pageWidth - 250,
-      signatureY + 5,
-      {
-        width: 185,
-        align: "center",
-      }
-    );
-
-  // =================================================
-  // BOTTOM MOTTO
-  // =================================================
-
-  doc
+    .font("sansBold")
+    .fontSize(7.5)
     .fillColor(GREEN)
-    .font("Times-Bold")
-    .fontSize(7)
-    .text(
-      "TECHNICAL EDUCATION FOR A BRIGHTER TOMORROW",
-      250,
-      pageHeight - 37,
-      {
-        width:
-          pageWidth - 500,
-        align: "center",
-      }
-    );
+    .text("TECHNICAL EDUCATION FOR A BRIGHTER TOMORROW", 0, H - 43, {
+      width: W,
+      align: "center",
+      characterSpacing: 2,
+      lineBreak: false,
+    });
 };
 
 // =====================================================
@@ -1491,6 +852,8 @@ export const generateCertificatesPdf = async (
       });
 
       doc.on("error", reject);
+
+      registerFonts(doc);
 
       // Open each logo once, so it is stored in the PDF
       // once instead of once per page.
