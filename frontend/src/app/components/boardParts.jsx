@@ -78,7 +78,7 @@ export const getTeamSize = (event) =>
     ? Math.max(Number(event.teamSize) || 1, 1)
     : 1;
 
-// "M100 · Male · PC · Team of 4"
+// "M100 · Male · PC · Team event"
 export function EventMeta({ event }) {
   return (
     <p className="mt-0.5 text-xs text-slate-500">
@@ -86,7 +86,7 @@ export function EventMeta({ event }) {
       {event.participationCategory === "physically_challenged" &&
         " · PC"}
       {event.eventType === "team" &&
-        ` · Team of ${getTeamSize(event)}`}
+        " · Team event"}
     </p>
   );
 }

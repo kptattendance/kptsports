@@ -90,6 +90,10 @@ export default function AdminApplicationsPage() {
   const [statusFilter, setStatusFilter] =
     useState("all");
 
+  // Students / faculty
+  const [typeFilter, setTypeFilter] =
+    useState("all");
+
   const [eventFilter, setEventFilter] =
     useState("all");
 
@@ -625,6 +629,14 @@ export default function AdminApplicationsPage() {
               return false;
             }
 
+            if (
+              typeFilter !== "all" &&
+              (application.participantType ||
+                "student") !== typeFilter
+            ) {
+              return false;
+            }
+
             // ---------------------------------------------
             // EVENT
             // ---------------------------------------------
@@ -750,6 +762,7 @@ export default function AdminApplicationsPage() {
       branchFilter,
       participationFilter,
       statusFilter,
+      typeFilter,
       eventFilter,
       sortBy,
     ]);
@@ -769,6 +782,7 @@ export default function AdminApplicationsPage() {
       setBranchFilter("all");
       setParticipationFilter("all");
       setStatusFilter("all");
+      setTypeFilter("all");
       setEventFilter("all");
       setSortBy("submitted");
 
@@ -1126,6 +1140,16 @@ export default function AdminApplicationsPage() {
 
               "Student Name":
                 application.name ||
+                "",
+
+              "Type":
+                application.participantType ===
+                "faculty"
+                  ? "Faculty / Staff"
+                  : "Student",
+
+              "Designation":
+                application.designation ||
                 "",
 
               "Register Number":
@@ -1714,6 +1738,18 @@ export default function AdminApplicationsPage() {
               ]}
             />
 
+            {/* STUDENT / FACULTY */}
+
+            <Select
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[
+                ["all", "Students & Faculty"],
+                ["student", "Students"],
+                ["faculty", "Faculty / Staff"],
+              ]}
+            />
+
             {/* STATUS */}
 
             <Select
@@ -2148,9 +2184,19 @@ export default function AdminApplicationsPage() {
                           {/* REGISTER */}
 
                           <td className="px-4 py-3 font-semibold text-orange-600">
-                            {
+                            {application.participantType ===
+                            "faculty" ? (
+                              <span className="inline-flex flex-col">
+                                <span className="w-fit rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                                  Faculty
+                                </span>
+                                <span className="mt-0.5 text-xs font-medium text-slate-500">
+                                  {application.designation}
+                                </span>
+                              </span>
+                            ) : (
                               application.registerNumber
-                            }
+                            )}
                           </td>
 
                           {/* COLLEGE */}
@@ -2814,13 +2860,16 @@ function ApplicationCard({
           </div>
 
           <p className="text-sm font-semibold text-orange-600">
-            {application.registerNumber}
+            {application.participantType === "faculty"
+              ? `Faculty${application.designation ? ` · ${application.designation}` : ""}`
+              : application.registerNumber}
           </p>
 
           <p className="mt-1 text-xs capitalize text-slate-500">
-            College {application.collegeCode} · Sem{" "}
-            {application.semester} · {application.branch} ·{" "}
-            {application.gender}
+            College {application.collegeCode}
+            {application.participantType !== "faculty" &&
+              ` · Sem ${application.semester}`}{" "}
+            · {application.branch} · {application.gender}
           </p>
 
           <p className="mt-0.5 text-xs text-slate-400">

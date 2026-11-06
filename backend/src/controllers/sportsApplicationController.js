@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
-import SportsApplication from "../models/SportsApplication.js";
+import SportsApplication, {
+  DESIGNATIONS,
+  PARTICIPANT_TYPES,
+} from "../models/SportsApplication.js";
 import SportsMeet from "../models/SportsMeet.js";
 import Event from "../models/Event.js";
 import SportsResult from "../models/SportsResult.js";
@@ -94,6 +97,47 @@ const validateEvents = async ({
 };
 
 // ======================================================
+// HELPER: Student / faculty fields
+//
+// Sets participantType and designation from the request,
+// and clears the student-only fields for faculty.
+// Returns an error message, or null when all is well.
+// ======================================================
+
+const applyParticipantType = (
+  application,
+  { participantType, designation }
+) => {
+  if (participantType !== undefined) {
+    if (!PARTICIPANT_TYPES.includes(participantType)) {
+      return "Invalid participant type.";
+    }
+
+    application.participantType = participantType;
+  }
+
+  if (designation !== undefined) {
+    if (designation && !DESIGNATIONS.includes(designation)) {
+      return "Invalid designation.";
+    }
+
+    application.designation = designation || "";
+  }
+
+  if (application.participantType === "faculty") {
+    application.registerNumber = "";
+    application.fatherName = "";
+    application.motherName = "";
+    application.dateOfBirth = undefined;
+    application.semester = undefined;
+  } else {
+    application.designation = "";
+  }
+
+  return null;
+};
+
+// ======================================================
 // CREATE APPLICATION
 // POST /api/sports-applications
 // ======================================================
@@ -107,6 +151,8 @@ export const createApplication = async (req, res) => {
 
     const {
       meetId,
+      participantType = "student",
+      designation = "",
       collegeCode,
       registerNumber,
       name,
@@ -126,22 +172,43 @@ export const createApplication = async (req, res) => {
     // Required fields
     // ----------------------------------------------------
 
-    if (
+    const isFaculty = participantType === "faculty";
+
+    const missingCommon =
       !meetId ||
       !collegeCode ||
-      !registerNumber ||
       !name ||
-      !fatherName ||
-      !dateOfBirth ||
       !gender ||
-      !semester ||
       !branch ||
       !phone ||
-      !participationCategory
-    ) {
+      !participationCategory;
+
+    const missingStudent =
+      !isFaculty &&
+      (!registerNumber ||
+        !fatherName ||
+        !dateOfBirth ||
+        !semester);
+
+    if (missingCommon || missingStudent) {
       return res.status(400).json({
         success: false,
-        message: "Please provide all required student details.",
+        message: isFaculty
+          ? "Please provide name, college, department, gender and phone."
+          : "Please provide all required student details.",
+      });
+    }
+
+    // Checked now, before the photo is uploaded
+    const participantError = applyParticipantType(
+      new SportsApplication(),
+      { participantType, designation }
+    );
+
+    if (participantError) {
+      return res.status(400).json({
+        success: false,
+        message: participantError,
       });
     }
 
@@ -257,26 +324,26 @@ export const createApplication = async (req, res) => {
     // Create application
     // ----------------------------------------------------
 
-    application = await SportsApplication.create({
+    const draft = new SportsApplication({
       user: user._id,
 
       meet: meetId,
 
       collegeCode: collegeCode.trim().toUpperCase(),
 
-      registerNumber: registerNumber.trim().toUpperCase(),
+      registerNumber: registerNumber?.trim().toUpperCase() || "",
 
       name: name.trim(),
 
-      fatherName: fatherName.trim(),
+      fatherName: fatherName?.trim() || "",
 
       motherName: motherName?.trim() || "",
 
-      dateOfBirth,
+      dateOfBirth: dateOfBirth || undefined,
 
       gender,
 
-      semester: Number(semester),
+      semester: semester ? Number(semester) : undefined,
 
       branch: branch.trim(),
 
@@ -297,6 +364,10 @@ export const createApplication = async (req, res) => {
 
       submittedAt: new Date(),
     });
+
+    applyParticipantType(draft, { participantType, designation });
+
+    application = await draft.save();
 
     const populatedApplication =
       await SportsApplication.findById(application._id)
@@ -739,6 +810,18 @@ export const updateMyApplication = async (
     // Upload new photo if provided
     // ----------------------------------------------------
 
+    const participantError = applyParticipantType(
+      application,
+      req.body
+    );
+
+    if (participantError) {
+      return res.status(400).json({
+        success: false,
+        message: participantError,
+      });
+    }
+
     if (req.file) {
       const uploadedPhoto =
         await uploadToCloudinary(
@@ -929,6 +1012,18 @@ export const updateApplication = async (
     // ----------------------------------------------------
     // Photo
     // ----------------------------------------------------
+
+    const participantError = applyParticipantType(
+      application,
+      req.body
+    );
+
+    if (participantError) {
+      return res.status(400).json({
+        success: false,
+        message: participantError,
+      });
+    }
 
     if (req.file) {
       const uploadedPhoto =
@@ -1303,7 +1398,7 @@ export const applicationsReportPdf = async (
       columns: [
         { header: "#", width: 0.45, align: "center" },
         { header: "Name", width: 2.2 },
-        { header: "Register No", width: 1.4 },
+        { header: "Reg. No / Designation", width: 1.4 },
         { header: "College", width: 0.8, align: "center" },
         { header: "Sem", width: 0.5, align: "center" },
         { header: "Branch", width: 0.8 },
@@ -1315,9 +1410,11 @@ export const applicationsReportPdf = async (
       rows: ordered.map((item, index) => [
         index + 1,
         item.name,
-        item.registerNumber,
+        item.participantType === "faculty"
+          ? item.designation || "Faculty"
+          : item.registerNumber,
         item.collegeCode,
-        item.semester,
+        item.participantType === "faculty" ? "Faculty" : item.semester,
         item.branch,
         capitalize(item.gender),
         item.phone || "",

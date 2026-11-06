@@ -81,9 +81,10 @@ const certificateSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Empty for faculty
     registerNumber: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       uppercase: true,
     },

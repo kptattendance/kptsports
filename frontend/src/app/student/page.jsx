@@ -449,12 +449,22 @@ export default function StudentPage() {
 
                     <div className="flex-1 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 
-                      <Info
-                        label="Register Number"
-                        value={
-                          application.registerNumber
-                        }
-                      />
+                      {application.participantType === "faculty" ? (
+                        <Info
+                          label="Designation"
+                          value={
+                            application.designation ||
+                            "Faculty / Staff"
+                          }
+                        />
+                      ) : (
+                        <Info
+                          label="Register Number"
+                          value={
+                            application.registerNumber
+                          }
+                        />
+                      )}
 
                       <Info
                         label="College"
@@ -464,18 +474,20 @@ export default function StudentPage() {
                       />
 
                       <Info
-                        label="Branch"
+                        label="Department"
                         value={
                           application.branch
                         }
                       />
 
-                      <Info
-                        label="Semester"
-                        value={
-                          `Semester ${application.semester}`
-                        }
-                      />
+                      {application.participantType !== "faculty" && (
+                        <Info
+                          label="Semester"
+                          value={
+                            `Semester ${application.semester}`
+                          }
+                        />
+                      )}
 
                       <Info
                         label="Gender"
@@ -484,28 +496,32 @@ export default function StudentPage() {
                         }
                       />
 
-                      <Info
-                        label="Date of Birth"
-                        value={
-                          formatDate(
-                            application.dateOfBirth
-                          )
-                        }
-                      />
+                      {application.participantType !== "faculty" && (
+                        <>
+                          <Info
+                            label="Date of Birth"
+                            value={
+                              formatDate(
+                                application.dateOfBirth
+                              )
+                            }
+                          />
 
-                      <Info
-                        label="Father"
-                        value={
-                          application.fatherName
-                        }
-                      />
+                          <Info
+                            label="Father"
+                            value={
+                              application.fatherName
+                            }
+                          />
 
-                      <Info
-                        label="Mother"
-                        value={
-                          application.motherName
-                        }
-                      />
+                          <Info
+                            label="Mother"
+                            value={
+                              application.motherName
+                            }
+                          />
+                        </>
+                      )}
 
                       <Info
                         label="Phone"

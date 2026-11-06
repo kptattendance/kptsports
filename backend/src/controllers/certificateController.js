@@ -93,12 +93,22 @@ export const downloadCertificatePdf =
       // GENERATE PDF
       // =================================================
 
+      const result =
+        certificate.certificateType === "winner"
+          ? await SportsResult.findOne({
+              meet: certificate.meet,
+              event: certificate.event,
+              position: certificate.position,
+            }).lean()
+          : null;
+
       const pdfBuffer =
         await generateCertificatePdf({
           certificate,
           meet,
           event,
           application,
+          result,
         });
 
       // =================================================
@@ -425,7 +435,7 @@ export const printEventCertificates =
             ),
           },
         })
-          .select("photo name semester branch")
+          .select("photo name semester branch participantType designation")
           .lean();
 
       const applicationById = new Map(
@@ -447,6 +457,10 @@ export const printEventCertificates =
             event,
             application: applicationById.get(
               String(certificate.application)
+            ),
+            // time / distance printed on winner certificates
+            result: results.find(
+              (item) => item.position === certificate.position
             ),
           }))
         );

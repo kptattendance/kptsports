@@ -764,7 +764,7 @@ function AttendanceSheet({
 
   const visibleStudents = term
     ? students.filter((student) =>
-        `${student.name} ${student.registerNumber} ${student.collegeCode}`
+        `${student.name} ${student.registerNumber} ${student.designation} ${student.collegeCode}`
           .toLowerCase()
           .includes(term)
       )
@@ -932,7 +932,10 @@ function AttendanceSheet({
                         {student.name}
                       </span>
                       <span className="block text-xs text-slate-500">
-                        {student.registerNumber} · College {student.collegeCode}
+                        {student.participantType === "faculty"
+                          ? student.designation || "Faculty"
+                          : student.registerNumber}{" "}
+                        · College {student.collegeCode}
                       </span>
                     </span>
 

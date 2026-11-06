@@ -73,6 +73,8 @@ export default function StudentApplyPage() {
     useState([]);
 
   const [form, setForm] = useState({
+    participantType: "student",
+    designation: "",
     collegeCode: "",
     registerNumber: "",
     name: "",
@@ -376,6 +378,14 @@ export default function StudentApplyPage() {
             );
 
             setForm({
+              participantType:
+                existing.participantType ||
+                "student",
+
+              designation:
+                existing.designation ||
+                "",
+
               collegeCode:
                 existing.collegeCode ||
                 "",
@@ -626,7 +636,12 @@ export default function StudentApplyPage() {
         return;
       }
 
+      const isStudent =
+        form.participantType !==
+        "faculty";
+
       if (
+        isStudent &&
         !form.registerNumber.trim()
       ) {
         setError(
@@ -637,12 +652,13 @@ export default function StudentApplyPage() {
 
       if (!form.name.trim()) {
         setError(
-          "Enter student name."
+          "Enter your name."
         );
         return;
       }
 
       if (
+        isStudent &&
         !form.fatherName.trim()
       ) {
         setError(
@@ -651,7 +667,10 @@ export default function StudentApplyPage() {
         return;
       }
 
-      if (!form.dateOfBirth) {
+      if (
+        isStudent &&
+        !form.dateOfBirth
+      ) {
         setError(
           "Select date of birth."
         );
@@ -665,7 +684,10 @@ export default function StudentApplyPage() {
         return;
       }
 
-      if (!form.semester) {
+      if (
+        isStudent &&
+        !form.semester
+      ) {
         setError(
           "Select semester."
         );
@@ -674,7 +696,7 @@ export default function StudentApplyPage() {
 
       if (!form.branch.trim()) {
         setError(
-          "Enter branch."
+          "Select department."
         );
         return;
       }
@@ -691,7 +713,7 @@ export default function StudentApplyPage() {
         !photoFile
       ) {
         setError(
-          "Student photo is required."
+          "Photo is required."
         );
         return;
       }
@@ -718,6 +740,18 @@ export default function StudentApplyPage() {
         formData.append(
           "meetId",
           meet._id
+        );
+
+        formData.append(
+          "participantType",
+          form.participantType
+        );
+
+        formData.append(
+          "designation",
+          isStudent
+            ? ""
+            : form.designation
         );
 
         formData.append(
@@ -1028,7 +1062,7 @@ export default function StudentApplyPage() {
                 <div className="text-center sm:text-left">
 
                   <div className="font-bold text-slate-900">
-                    Student Photo
+                    Photo
                   </div>
 
                   <p className="text-xs text-slate-500 mt-1">
@@ -1060,6 +1094,47 @@ export default function StudentApplyPage() {
 
               </div>
 
+              {/* STUDENT OR FACULTY */}
+
+              <div className="mt-6">
+
+                <p className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  I am a
+                  <span className="text-orange-500 ml-1">*</span>
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ["student", "Student"],
+                    ["faculty", "Faculty / Staff"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        updateField(
+                          "participantType",
+                          value
+                        )
+                      }
+                      aria-pressed={
+                        form.participantType ===
+                        value
+                      }
+                      className={`rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
+                        form.participantType ===
+                        value
+                          ? "border-orange-500 bg-orange-50 text-orange-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-orange-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+              </div>
+
               {/* FIELDS */}
 
               <div className="grid sm:grid-cols-2 gap-4 mt-6">
@@ -1086,21 +1161,46 @@ export default function StudentApplyPage() {
                   required
                 />
 
-                <Field
-                  label="Register Number"
-                  value={form.registerNumber}
-                  onChange={(value) =>
-                    updateField(
-                      "registerNumber",
-                      value.toUpperCase()
-                    )
-                  }
-                  icon={<Hash size={16} />}
-                  required
-                />
+                {form.participantType === "faculty" ? (
+                  <Select
+                    label="Designation"
+                    value={form.designation}
+                    onChange={(value) =>
+                      updateField(
+                        "designation",
+                        value
+                      )
+                    }
+                    options={[
+                      ["Lecturer", "Lecturer"],
+                      ["Senior Grade Lecturer", "Senior Grade Lecturer"],
+                      ["Selection Grade Lecturer", "Selection Grade Lecturer"],
+                      ["HOD", "HOD"],
+                      ["Principal", "Principal"],
+                      ["Office Staff", "Office Staff"],
+                    ]}
+                  />
+                ) : (
+                  <Field
+                    label="Register Number"
+                    value={form.registerNumber}
+                    onChange={(value) =>
+                      updateField(
+                        "registerNumber",
+                        value.toUpperCase()
+                      )
+                    }
+                    icon={<Hash size={16} />}
+                    required
+                  />
+                )}
 
                 <Field
-                  label="Student Name"
+                  label={
+                    form.participantType === "faculty"
+                      ? "Name"
+                      : "Student Name"
+                  }
                   value={form.name}
                   onChange={(value) =>
                     updateField(
@@ -1111,6 +1211,8 @@ export default function StudentApplyPage() {
                   required
                 />
 
+                {form.participantType !== "faculty" && (
+                <>
                 <Field
                   label="Father's Name"
                   value={form.fatherName}
@@ -1146,6 +1248,8 @@ export default function StudentApplyPage() {
                   }
                   required
                 />
+                </>
+                )}
 
                 <Select
                   label="Gender"
@@ -1164,6 +1268,7 @@ export default function StudentApplyPage() {
                   required
                 />
 
+                {form.participantType !== "faculty" && (
                 <Select
                   label="Semester"
                   value={form.semester}
@@ -1183,6 +1288,7 @@ export default function StudentApplyPage() {
                   ]}
                   required
                 />
+                )}
 
                 <Select
                   label="Department"
@@ -1243,6 +1349,7 @@ export default function StudentApplyPage() {
                     ["TT", "TT - Travel & Tourism"],
                     ["TX", "TX - Textile Technology"],
                     ["WS", "WS - Mechanical Engg. (WSM)"],
+                    ["OFFICE", "Office / Administration"],
                     ["OTHER", "Other"],
                   ].sort((a, b) => {
                     if (a[0] === "OTHER")

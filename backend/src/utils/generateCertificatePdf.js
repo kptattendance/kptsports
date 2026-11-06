@@ -175,6 +175,37 @@ const PLACE_NAMES = {
   3: "Third Place",
 };
 
+// "with a time of 11.4 sec"
+const RESULT_PHRASES = {
+  time: "with a time of",
+  distance: "with a distance of",
+  points: "with a score of",
+};
+
+const describeResult = (result, event) => {
+  const value = String(result?.resultValue || "").trim();
+
+  if (!value) {
+    return "";
+  }
+
+  const unit = String(result.resultUnit || event?.unit || "").trim();
+  const phrase = RESULT_PHRASES[event?.resultType] || "with a result of";
+
+  return `${phrase} ${value}${unit ? ` ${unit}` : ""}`;
+};
+
+// Team events have a Winner and a Runner-up team
+const TEAM_PLACE_NAMES = {
+  1: "Winner Team",
+  2: "Runner-up Team",
+};
+
+const TEAM_MEDAL_WORDS = {
+  1: ["WINNER", "TEAM"],
+  2: ["RUNNER-UP", "TEAM"],
+};
+
 const PLACE_SHORT = {
   1: "1st",
   2: "2nd",
@@ -380,6 +411,7 @@ const drawCertificate = (
     meet,
     event,
     application,
+    result,
     images,
     studentPhotoBuffer,
   }
@@ -396,6 +428,8 @@ const drawCertificate = (
   const cx = W / 2;
 
   const isWinner = certificate.certificateType === "winner";
+  const isTeam = event?.eventType === "team";
+  const isFaculty = application?.participantType === "faculty";
   const position = Number(certificate.position) || null;
 
   const meetName = meet?.name || certificate.meetName || "Sports Meet";
@@ -607,12 +641,20 @@ const drawCertificate = (
 
   drawOrnamentLine(doc, cx, 310, 200);
 
-  const details = [
-    certificate.registerNumber && `Reg. No. ${certificate.registerNumber}`,
-    application?.semester && `Semester ${application.semester}`,
-    application?.branch,
-    certificate.collegeCode && `College Code ${certificate.collegeCode}`,
-  ].filter(Boolean);
+  const details = (
+    isFaculty
+      ? [
+          application?.designation,
+          application?.branch && `Department of ${application.branch}`,
+          certificate.collegeCode && `College Code ${certificate.collegeCode}`,
+        ]
+      : [
+          certificate.registerNumber && `Reg. No. ${certificate.registerNumber}`,
+          application?.semester && `Semester ${application.semester}`,
+          application?.branch,
+          certificate.collegeCode && `College Code ${certificate.collegeCode}`,
+        ]
+  ).filter(Boolean);
 
   doc
     .font("sansBold")
@@ -632,21 +674,40 @@ const drawCertificate = (
   const dates = formatDateRange(meet?.startDate, meet?.endDate);
   const when = dates ? ` ${dates}` : "";
 
+  // Time / distance / score saved with the result
+  const resultText = isWinner ? describeResult(result, event) : "";
+
   const ending = isWinner && position
     ? `${venue}${when}, displaying outstanding skill, determination and true sportsmanship.`
     : `${venue}${when}, and displayed admirable enthusiasm, team spirit and sportsmanship.`;
 
   const segments = isWinner && position
     ? [
-        { text: "has secured ", font: "serif", color: INK },
-        { text: PLACE_NAMES[position], font: "serifBold", color: MAROON },
+        ...(isTeam
+          ? [
+              { text: "was a member of the ", font: "serif", color: INK },
+              { text: TEAM_PLACE_NAMES[position] || PLACE_NAMES[position], font: "serifBold", color: MAROON },
+            ]
+          : [
+              { text: "has secured ", font: "serif", color: INK },
+              { text: PLACE_NAMES[position], font: "serifBold", color: MAROON },
+            ]),
         { text: " in ", font: "serif", color: INK },
         { text: eventName, font: "serifBold", color: NAVY },
+        ...(resultText
+          ? [
+              { text: " ", font: "serif", color: INK },
+              { text: resultText, font: "serifBold", color: MAROON },
+            ]
+          : []),
         { text: ` at the ${meetName}${ending}`, font: "serif", color: INK },
       ]
     : [
         { text: "has actively participated in ", font: "serif", color: INK },
         { text: eventName, font: "serifBold", color: NAVY },
+        ...(isTeam
+          ? [{ text: " as a team member", font: "serif", color: INK }]
+          : []),
         { text: ` at the ${meetName}${ending}`, font: "serif", color: INK },
       ];
 
@@ -730,7 +791,22 @@ const drawCertificate = (
   doc.save().circle(mx, my, radius).fill(medalFill).restore();
   doc.save().circle(mx, my, radius - 7).dash(2, { space: 2 }).lineWidth(0.8).strokeColor(medalText).opacity(0.6).stroke().restore();
 
-  if (isWinner && position) {
+  if (isWinner && position && isTeam) {
+    const [word, sub] = TEAM_MEDAL_WORDS[position] || ["WINNER", "TEAM"];
+    const wordSize = fitFontSize(doc, "serifBold", word, radius * 2 - 18, 17, 10);
+
+    doc
+      .font("serifBold")
+      .fontSize(wordSize)
+      .fillColor(medalText)
+      .text(word, mx - radius, my - wordSize / 2 - 6, { width: radius * 2, align: "center", lineBreak: false });
+
+    doc
+      .font("sansBlack")
+      .fontSize(8)
+      .fillColor(medalText)
+      .text(sub, mx - radius, my + 12, { width: radius * 2, align: "center", characterSpacing: 2.5 });
+  } else if (isWinner && position) {
     doc
       .font("serifBold")
       .fontSize(32)

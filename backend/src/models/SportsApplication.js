@@ -1,5 +1,23 @@
 import mongoose from "mongoose";
 
+// Faculty / staff take part too. They have no register
+// number, parents, date of birth or semester.
+export const PARTICIPANT_TYPES = ["student", "faculty"];
+
+export const DESIGNATIONS = [
+  "Lecturer",
+  "Senior Grade Lecturer",
+  "Selection Grade Lecturer",
+  "HOD",
+  "Principal",
+  "Office Staff",
+];
+
+// Field is required only for students
+function requiredForStudents() {
+  return this.participantType !== "faculty";
+}
+
 const sportsApplicationSchema = new mongoose.Schema(
   {
     user: {
@@ -16,6 +34,20 @@ const sportsApplicationSchema = new mongoose.Schema(
       index: true,
     },
 
+    participantType: {
+      type: String,
+      enum: PARTICIPANT_TYPES,
+      default: "student",
+      required: true,
+    },
+
+    // Faculty only, optional
+    designation: {
+      type: String,
+      enum: [...DESIGNATIONS, ""],
+      default: "",
+    },
+
     collegeCode: {
       type: String,
       required: true,
@@ -25,7 +57,8 @@ const sportsApplicationSchema = new mongoose.Schema(
 
     registerNumber: {
       type: String,
-      required: true,
+      required: requiredForStudents,
+      default: "",
       trim: true,
       uppercase: true,
     },
@@ -38,7 +71,8 @@ const sportsApplicationSchema = new mongoose.Schema(
 
     fatherName: {
       type: String,
-      required: true,
+      required: requiredForStudents,
+      default: "",
       trim: true,
     },
 
@@ -50,7 +84,7 @@ const sportsApplicationSchema = new mongoose.Schema(
 
     dateOfBirth: {
       type: Date,
-      required: true,
+      required: requiredForStudents,
     },
 
     gender: {
@@ -62,9 +96,10 @@ const sportsApplicationSchema = new mongoose.Schema(
     semester: {
       type: Number,
       enum: [1, 2, 3, 4, 5, 6],
-      required: true,
+      required: requiredForStudents,
     },
 
+    // Department (students and faculty)
     branch: {
       type: String,
       required: true,

@@ -60,6 +60,15 @@ const PLACES = [
   },
 ];
 
+// Team events have a Winner and a Runner-up team
+const TEAM_PLACES = [
+  { ...PLACES[0], label: "Winner" },
+  { ...PLACES[1], label: "Runner-up" },
+];
+
+const placesFor = (event) =>
+  event?.eventType === "team" ? TEAM_PLACES : PLACES;
+
 // Result types that have a measured value (time, distance...)
 const MEASURED_RESULT_TYPES = [
   "time",
@@ -731,6 +740,23 @@ function PlaceWinners({ event, result, printing, onPrint }) {
     return <span className="text-slate-300">—</span>;
   }
 
+  // Teams can have 11+ players: show a short summary
+  if (event.eventType === "team") {
+    const names = result.participants.map((student) => student.name);
+
+    return (
+      <div>
+        <p className="font-medium text-slate-800">
+          {names.length} player{names.length === 1 ? "" : "s"}
+        </p>
+        <p className="text-xs text-slate-400">
+          {names.slice(0, 3).join(", ")}
+          {names.length > 3 && ` +${names.length - 3} more`}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       {result.participants.map((student) => (
@@ -916,10 +942,10 @@ function ResultCard({ row, printing, onEnter, onPrint }) {
 
       {row.entered && (
         <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-          {PLACES.map((place) => (
+          {placesFor(event).map((place) => (
             <div key={place.position} className="flex items-start gap-3">
               <span
-                className={`mt-0.5 inline-flex w-11 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-bold ring-1 ${place.badge}`}
+                className={`mt-0.5 inline-flex min-w-11 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-bold ring-1 ${place.badge}`}
               >
                 {place.label}
               </span>
@@ -1043,6 +1069,9 @@ function ResultEntryModal({
   const { event } = row;
   const teamSize = getTeamSize(event);
 
+  // Team events: any number of players, Winner + Runner-up only
+  const isTeam = event.eventType === "team";
+
   const showValue = MEASURED_RESULT_TYPES.includes(event.resultType);
 
   const [participants, setParticipants] = useState([]);
@@ -1050,8 +1079,11 @@ function ResultEntryModal({
   const [saving, setSaving] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
 
-  // { 1: [id, id], 2: [...], 3: [...] } - one id per team slot
-  const [places, setPlaces] = useState(() => emptyPlaces(teamSize));
+  // { 1: [id, id], 2: [...], 3: [...] }
+  // Individual events: one id per slot. Team events: the players.
+  const [places, setPlaces] = useState(() =>
+    isTeam ? { 1: [], 2: [], 3: [] } : emptyPlaces(teamSize)
+  );
   const [values, setValues] = useState({ 1: "", 2: "", 3: "" });
 
   // ---------------------------------------------------
@@ -1075,12 +1107,16 @@ function ResultEntryModal({
           return;
         }
 
-        const nextPlaces = emptyPlaces(teamSize);
+        const nextPlaces = isTeam
+          ? { 1: [], 2: [], 3: [] }
+          : emptyPlaces(teamSize);
         const nextValues = { 1: "", 2: "", 3: "" };
 
         for (const result of response.data?.results || []) {
           result.participants.forEach((student, slot) => {
-            if (slot < teamSize) {
+            if (isTeam) {
+              nextPlaces[result.position].push(student._id);
+            } else if (slot < teamSize) {
               nextPlaces[result.position][slot] = student._id;
             }
           });
@@ -1108,7 +1144,7 @@ function ResultEntryModal({
     return () => {
       cancelled = true;
     };
-  }, [event._id, meetId, teamSize, authHeaders, onClose]);
+  }, [event._id, meetId, teamSize, isTeam, authHeaders, onClose]);
 
   // ---------------------------------------------------
   // CLOSE WITH ESC
@@ -1149,6 +1185,34 @@ function ResultEntryModal({
               .includes(term)))
     );
 
+  // Team events: a player is in the Winner team, the
+  // Runner-up team, or neither. Tapping again removes them.
+  const toggleTeam = (studentId, position) => {
+    setPlaces((previous) => {
+      const wasHere = previous[position].includes(studentId);
+
+      const next = {
+        1: previous[1].filter((id) => id !== studentId),
+        2: previous[2].filter((id) => id !== studentId),
+        3: [],
+      };
+
+      if (!wasHere) {
+        next[position] = [...next[position], studentId];
+      }
+
+      return next;
+    });
+  };
+
+  const visiblePlayers = participants.filter(
+    (student) =>
+      !term ||
+      `${student.name} ${student.registerNumber} ${student.designation} ${student.collegeCode}`
+        .toLowerCase()
+        .includes(term)
+  );
+
   const setSlot = (position, slot, studentId) => {
     setPlaces((previous) => ({
       ...previous,
@@ -1173,10 +1237,12 @@ function ResultEntryModal({
 
   const save = async (print) => {
     // A team place must be complete or left empty
-    const halfFilled = PLACES.find((place) => {
-      const filled = places[place.position].filter(Boolean).length;
-      return filled > 0 && filled < teamSize;
-    });
+    const halfFilled = isTeam
+      ? null
+      : PLACES.find((place) => {
+          const filled = places[place.position].filter(Boolean).length;
+          return filled > 0 && filled < teamSize;
+        });
 
     if (halfFilled) {
       showWarning(
@@ -1185,7 +1251,9 @@ function ResultEntryModal({
       return;
     }
 
-    const positions = PLACES.map((place) => ({
+    const positions = PLACES.filter(
+      (place) => !isTeam || place.position < 3
+    ).map((place) => ({
       position: place.position,
       participants: places[place.position].filter(Boolean),
       resultValue: values[place.position],
@@ -1196,7 +1264,11 @@ function ResultEntryModal({
     );
 
     if (!hasWinner && !row.entered) {
-      showWarning("Select at least the 1st place winner.");
+      showWarning(
+        isTeam
+          ? "Mark the players of the Winner team."
+          : "Select at least the 1st place winner."
+      );
       return;
     }
 
@@ -1259,9 +1331,10 @@ function ResultEntryModal({
               {event.name}
             </h3>
 
-            <p className="text-xs capitalize text-slate-500">
-              {event.code} · {event.gender} · {participants.length} students
-              {event.eventType === "team" && ` · Team of ${teamSize}`}
+            <p className="text-xs text-slate-500">
+              {event.code} · <span className="capitalize">{event.gender}</span>{" "}
+              · {participants.length} registered
+              {event.eventType === "team" && " · Team event"}
             </p>
           </div>
 
@@ -1317,6 +1390,78 @@ function ResultEntryModal({
                 </div>
               )}
 
+              {isTeam ? (
+                <div>
+                  <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold">
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700 ring-1 ring-amber-200">
+                      Winner team: {places[1].length}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 ring-1 ring-slate-200">
+                      Runner-up team: {places[2].length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {visiblePlayers.map((student) => {
+                      const inWinner = places[1].includes(student._id);
+                      const inRunner = places[2].includes(student._id);
+
+                      return (
+                        <div
+                          key={student._id}
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                            inWinner
+                              ? "border-amber-300 bg-amber-50"
+                              : inRunner
+                                ? "border-slate-300 bg-slate-50"
+                                : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-slate-900">
+                              {student.name}
+                            </span>
+                            <span className="block text-xs text-slate-500">
+                              {student.participantType === "faculty"
+                                ? student.designation || "Faculty"
+                                : student.registerNumber}{" "}
+                              · College {student.collegeCode}
+                            </span>
+                          </span>
+
+                          <div className="flex shrink-0 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleTeam(student._id, 1)}
+                              aria-pressed={inWinner}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
+                                inWinner
+                                  ? "bg-amber-500 text-white"
+                                  : "border border-slate-200 bg-white text-slate-500 hover:border-amber-300"
+                              }`}
+                            >
+                              Winner
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleTeam(student._id, 2)}
+                              aria-pressed={inRunner}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
+                                inRunner
+                                  ? "bg-slate-600 text-white"
+                                  : "border border-slate-200 bg-white text-slate-500 hover:border-slate-400"
+                              }`}
+                            >
+                              Runner-up
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-3">
                 {PLACES.map((place) => (
                   <div
@@ -1368,7 +1513,7 @@ function ResultEntryModal({
 
                             {optionsFor(studentId).map((student) => (
                               <option key={student._id} value={student._id}>
-                                {student.name} - {student.registerNumber} ({student.collegeCode})
+                                {student.name} - {student.registerNumber || student.designation || "Faculty"} ({student.collegeCode})
                               </option>
                             ))}
                           </select>
@@ -1396,11 +1541,14 @@ function ResultEntryModal({
                   </div>
                 ))}
               </div>
+              )}
 
               <p className="mt-3 text-xs text-slate-400">
-                Leave a place empty if there is no winner for it. Made a
-                mistake later? Open this event again, correct it and
-                print again.
+                {isTeam
+                  ? "Tap Winner or Runner-up for every player of those two teams. All other registered players get a participation certificate. "
+                  : "Leave a place empty if there is no winner for it. "}
+                Made a mistake later? Open this event again, correct it
+                and print again.
               </p>
             </>
           )}

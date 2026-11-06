@@ -11,7 +11,7 @@ const EVENT_FIELDS =
   "code name category gender participationCategory eventType teamSize resultType unit isActive displayOrder";
 
 const PARTICIPANT_FIELDS =
-  "name registerNumber collegeCode semester branch gender photo status";
+  "name registerNumber collegeCode semester branch gender photo status participantType designation";
 
 const POSITIONS = [1, 2, 3];
 
@@ -129,7 +129,7 @@ export const getResultBoard = async (req, res) => {
         ]),
 
         SportsResult.find({ meet: meet._id })
-          .populate("participants", "name registerNumber collegeCode")
+          .populate("participants", "name registerNumber collegeCode participantType designation")
           .lean(),
       ]);
 
@@ -342,23 +342,28 @@ export const saveEventResults = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // TEAM SIZE
+    // TEAM / INDIVIDUAL RULES
+    // Team events: Winner + Runner-up only, any squad size.
+    // Individual events: one student per place.
     // --------------------------------------------------
+
+    const isTeam = event.eventType === "team";
 
     const label = (position) =>
       position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
 
-    const expectedSize =
-      event.eventType === "team" ? Number(event.teamSize || 1) : 1;
-
     for (const entry of entries) {
-      if (entry.participants.length !== expectedSize) {
+      if (isTeam && entry.position === 3) {
         return res.status(400).json({
           success: false,
-          message:
-            event.eventType === "team"
-              ? `${label(entry.position)} place needs exactly ${expectedSize} students (team event).`
-              : `${label(entry.position)} place can have only one student.`,
+          message: "Team events have only a Winner and a Runner-up team.",
+        });
+      }
+
+      if (!isTeam && entry.participants.length !== 1) {
+        return res.status(400).json({
+          success: false,
+          message: `${label(entry.position)} place can have only one student.`,
         });
       }
     }

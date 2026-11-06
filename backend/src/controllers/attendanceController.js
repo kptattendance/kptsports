@@ -11,7 +11,7 @@ const EVENT_FIELDS =
   "code name category gender participationCategory eventType teamSize isActive displayOrder";
 
 const PARTICIPANT_FIELDS =
-  "name registerNumber collegeCode semester branch gender photo";
+  "name registerNumber collegeCode semester branch gender photo participantType designation";
 
 // Students rejected by the admin take no part
 const notRejected = { $ne: "rejected" };
@@ -357,7 +357,7 @@ export const getEventParticipantListPdf = async (req, res) => {
       columns: [
         { header: "#", width: 0.5, align: "center" },
         { header: "Name", width: 3 },
-        { header: "Register No", width: 1.8 },
+        { header: "Reg. No / Designation", width: 1.8 },
         { header: "College", width: 1, align: "center" },
         { header: "Sem / Branch", width: 1.4 },
         { header: "Attendance", width: 1.3, align: "center" },
@@ -369,9 +369,13 @@ export const getEventParticipantListPdf = async (req, res) => {
         return [
           index + 1,
           student.name,
-          student.registerNumber,
+          student.participantType === "faculty"
+            ? student.designation || "Faculty"
+            : student.registerNumber,
           student.collegeCode,
-          `${student.semester || "-"} / ${student.branch || "-"}`,
+          student.participantType === "faculty"
+            ? `Faculty / ${student.branch || "-"}`
+            : `${student.semester || "-"} / ${student.branch || "-"}`,
           present === undefined ? "" : present ? "Present" : "Absent",
           "",
         ];
